@@ -1,0 +1,12 @@
+input[type="text"], input:not([type="checkbox"]):not([type="range"]) {
+  outline: none;
+}
+input:focus {
+  border-color: #2563eb !important;
+}
+button:hover:not(:disabled) {
+  opacity: 0.9;
+}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0a0e1a; }
+::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
