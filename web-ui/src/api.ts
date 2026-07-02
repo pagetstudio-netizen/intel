@@ -1,5 +1,23 @@
 const BASE = '/api';
 
+export interface LoadTest {
+  id: string;
+  target_url: string;
+  status: 'running' | 'completed' | 'failed';
+  concurrent_users: number;
+  rps: number;
+  duration_seconds: number;
+  total_requests: number;
+  successful_requests: number;
+  failed_requests: number;
+  requests_per_second: number;
+  avg_response_ms: number;
+  server_crash: boolean;
+  verdict?: string;
+  created_at: string;
+  completed_at?: string;
+}
+
 export interface Scan {
   id: string;
   target_url: string;
@@ -67,6 +85,18 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ target_url, concurrency, timeout_ms }),
+    });
+    return r.json();
+  },
+  async getLoadTests(): Promise<LoadTest[]> {
+    const r = await fetch(`${BASE}/load-test`);
+    return r.json();
+  },
+  async startLoadTest(target_url: string, concurrent_users = 50, rps = 10, duration_seconds = 30): Promise<LoadTest> {
+    const r = await fetch(`${BASE}/load-test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_url, concurrent_users, rps, duration_seconds }),
     });
     return r.json();
   },

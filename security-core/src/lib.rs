@@ -159,17 +159,3 @@ pub struct FuzzResult {
     pub response_time_ms: u64,
 }
 
-/// Load test report
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LoadTestReport {
-    pub target_url: String,
-    pub duration_seconds: u64,
-    pub concurrent_users: usize,
-    pub total_requests: u64,
-    pub successful_requests: u64,
-    pub failed_requests: u64,
-    pub requests_per_second: u64,
-    pub average_response_time_ms: u64,
-    pub status: String,
-    pub server_crash: bool,
-}

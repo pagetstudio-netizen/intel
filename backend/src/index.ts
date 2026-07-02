@@ -3,6 +3,7 @@ import cors from 'cors';
 import { pool } from './db';
 import scansRouter from './routes/scans';
 import fuzzRouter from './routes/fuzz';
+import loadTestRouter from './routes/load-test';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000');
@@ -22,6 +23,7 @@ app.get('/api/health', async (_req, res) => {
 
 app.use('/api/scans', scansRouter);
 app.use('/api/fuzz', fuzzRouter);
+app.use('/api/load-test', loadTestRouter);
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`INTEL API running on port ${PORT}`);
