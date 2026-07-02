@@ -30,11 +30,12 @@ impl EndpointFuzzer {
         let base_url = job.target_url.clone();
         let method = job.method.clone();
         let timeout_ms = job.timeout_ms;
-        let wordlist = job.wordlist.clone();
+        let max_requests = job.concurrent_requests * 100;
+        let wordlist: Vec<String> = job.wordlist.clone();
 
         // Spawn concurrent fuzz tasks
-        for (idx, path) in wordlist.iter().enumerate() {
-            if idx >= job.concurrent_requests * 100 {
+        for (idx, path) in wordlist.into_iter().enumerate() {
+            if idx >= max_requests {
                 break; // Limit total requests
             }
 
@@ -65,7 +66,7 @@ impl EndpointFuzzer {
                         // Filter out 404s and common noise
                         if status != 404 && response_time_ms < timeout_ms {
                             Some(FuzzResult {
-                                path: path.clone(),
+                                path,
                                 status_code: status,
                                 response_size: content_length,
                                 response_time_ms,
@@ -75,7 +76,7 @@ impl EndpointFuzzer {
                         }
                     }
                     Err(e) => {
-                        log::debug!("Fuzzing error for {}: {}", path, e);
+                        log::debug!("Fuzzing error for {}: {}", url, e);
                         None
                     }
                 }

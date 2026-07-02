@@ -46,7 +46,7 @@ impl CveDatabase {
 
         if let Some(entries) = cache.get(package_name) {
             // Filter entries that match this version
-            let matching = entries
+            let matching: Vec<_> = entries
                 .iter()
                 .filter(|entry| self.version_matches(version, &entry.version_affected))
                 .cloned()
@@ -71,10 +71,9 @@ impl CveDatabase {
         for affected_spec in affected {
             if affected_spec.contains('<') {
                 // Extract version from "<X.Y.Z"
-                if let Some(affected_version) = affected_spec.trim_start_matches('<') {
-                    if self.compare_versions(version, affected_version) < 0 {
-                        return true;
-                    }
+                let affected_version = affected_spec.trim_start_matches('<');
+                if self.compare_versions(version, affected_version) < 0 {
+                    return true;
                 }
             } else if affected_spec == version {
                 return true;

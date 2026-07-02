@@ -50,7 +50,7 @@ impl DependencyScanner {
 
                                         let cve = vuln.get("cves")
                                             .and_then(|c| c.as_array())
-                                            .and_then(|mut arr| arr.pop())
+                                            .and_then(|arr| arr.first())
                                             .and_then(|c| c.as_str())
                                             .map(|s| s.to_string());
 

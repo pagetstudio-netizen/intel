@@ -35,7 +35,7 @@ impl CodeScanner {
 
         let patterns = vec![
             (r"SELECT.*FROM.*WHERE.*\$\{", "Potential SQL injection"),
-            (r"query\([\"'].*\$\{", "Query parameter not sanitized"),
+            (r#"query\(["'].*\$\{"#, "Query parameter not sanitized"),
             (r"execute\(.*\+.*\)", "String concatenation in query"),
         ];
 
@@ -98,8 +98,8 @@ impl CodeScanner {
         let mut findings = Vec::new();
 
         let patterns = vec![
-            (r"password\s*=\s*[\"']([^\"']+)[\"']", "Hardcoded password"),
-            (r"api[_]?key\s*=\s*[\"']sk-[a-zA-Z0-9]+[\"']", "Hardcoded API key"),
+            (r#"password\s*=\s*["']([^"']+)["']"#, "Hardcoded password"),
+            (r#"api[_]?key\s*=\s*["']sk-[a-zA-Z0-9]+["']"#, "Hardcoded API key"),
             (r"AKIA[0-9A-Z]{16}", "AWS Access Key ID"),
             (r"-----BEGIN.*PRIVATE.*KEY-----", "Private key exposure"),
         ];

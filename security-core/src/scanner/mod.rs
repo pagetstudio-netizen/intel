@@ -4,15 +4,19 @@
 /// - Configuration review
 /// - CVE database lookup
 
-pub mod dependency;
-pub mod sast;
 pub mod config;
 pub mod cve;
+pub mod dependency;
+pub mod fintech;
+pub mod load_tester;
+pub mod sast;
 
-pub use dependency::DependencyScanner;
-pub use sast::CodeScanner;
 pub use config::ConfigScanner;
 pub use cve::CveDatabase;
+pub use dependency::DependencyScanner;
+pub use fintech::FintechScanner;
+pub use load_tester::LoadTester;
+pub use sast::CodeScanner;
 
 use crate::{Result, ScanConfig, ScanResult, Finding, ScanStatus};
 use uuid::Uuid;
