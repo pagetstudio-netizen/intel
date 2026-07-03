@@ -1246,7 +1246,7 @@ function AuthAuditTab({ authTarget, setAuthTarget, handleAuthAudit, authLoading,
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: display ? '360px 1fr' : '1fr', gap: 24 }}>
+      <div className={display ? 'history-grid' : 'history-grid no-detail'}>
 
         {/* Left: form + history */}
         <div>
@@ -1317,7 +1317,7 @@ function AuthAuditTab({ authTarget, setAuthTarget, handleAuthAudit, authLoading,
 
         {/* Right: results */}
         {display && (
-          <div style={{ background: '#0d1424', border: '1px solid #1e293b', borderRadius: 12, padding: 24 }}>
+          <div className="detail-panel">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
               <div>
                 <div style={{ color: '#e2e8f0', fontWeight: 800, fontSize: 17 }}>{display.domain}</div>
@@ -1444,7 +1444,7 @@ function OsintTab({ osintDomain, setOsintDomain, handleOsint, osintLoading, acti
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: display ? '340px 1fr' : '1fr', gap: 24 }}>
+      <div className={display ? 'history-grid' : 'history-grid no-detail'}>
 
         {/* Left: form + history */}
         <div>
@@ -1492,9 +1492,9 @@ function OsintTab({ osintDomain, setOsintDomain, handleOsint, osintLoading, acti
               {osintScans.map(s => (
                 <div key={s.id} onClick={() => setActiveOsint(s)}
                   style={{ background: '#0d1424', border: `1px solid ${display?.id === s.id ? '#1d4ed8' : '#1e293b'}`, borderRadius: 8, padding: '10px 14px', marginBottom: 6, cursor: 'pointer' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ color: '#e2e8f0', fontWeight: 600, fontSize: 13 }}>{s.domain}</span>
-                    <span style={{ color: s.status === 'completed' ? '#60d394' : s.status === 'running' ? '#60a5fa' : '#ff3b5c', fontSize: 11, fontWeight: 700 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ color: '#e2e8f0', fontWeight: 600, fontSize: 13, wordBreak: 'break-all', minWidth: 0 }}>{s.domain}</span>
+                    <span style={{ color: s.status === 'completed' ? '#60d394' : s.status === 'running' ? '#60a5fa' : '#ff3b5c', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
                       {s.status === 'running' ? '⟳ En cours' : s.status === 'completed' ? `✓ ${s.emails_found.length} email(s)` : '✗ Erreur'}
                     </span>
                   </div>
@@ -1511,7 +1511,7 @@ function OsintTab({ osintDomain, setOsintDomain, handleOsint, osintLoading, acti
 
         {/* Right: results */}
         {display && (
-          <div style={{ background: '#0d1424', border: '1px solid #1e293b', borderRadius: 12, padding: 24, overflowY: 'auto', maxHeight: '85vh' }}>
+          <div className="detail-panel">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <div>
                 <div style={{ color: '#e2e8f0', fontWeight: 800, fontSize: 17 }}>{display.domain}</div>
