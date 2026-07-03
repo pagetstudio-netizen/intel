@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
-import { api, Scan, FuzzJob, LoadTest, PhishingAssessment, PhishingCheck, FintechFraudAudit, FraudCheck } from './api';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { api, Scan, FuzzJob, LoadTest, PhishingAssessment, PhishingCheck, FintechFraudAudit, FraudCheck, Mandate } from './api';
 import './app.css';
 
-type Tab = 'phishing' | 'fraud' | 'loadtest' | 'scanner' | 'fuzzer' | 'history';
+type Tab = 'phishing' | 'fraud' | 'loadtest' | 'scanner' | 'fuzzer' | 'history' | 'mandats';
 
 const SEV_COLOR: Record<string, string> = {
   CRITICAL: '#ff3b5c', HIGH: '#ff6b35', MEDIUM: '#fbbf24', LOW: '#60d394', INFO: '#60a5fa',
@@ -14,6 +14,172 @@ const CAT_ICON: Record<string, string> = { email: '📧', http: '🌐', dns: '�
 const FRAUD_CAT_ICON: Record<string, string> = {
   auth: '🔑', csrf: '🛡️', cors: '🌐', ratelimit: '⏱️', headers: '📋', exposure: '👁️',
 };
+
+function ClientConfirmPage({ token }: { token: string }) {
+  const [mandate, setMandate] = useState<Mandate | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [signing, setSigning] = useState(false);
+  const [signed, setSigned] = useState(false);
+  const fetchedRef = useRef(false);
+
+  useEffect(() => {
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+    api.getMandateByToken(token).then(m => {
+      if ((m as any).error) setError((m as any).error);
+      else { setMandate(m); if (m.status === 'authorized') setSigned(true); }
+    }).catch(() => setError('Impossible de charger le mandat.')).finally(() => setLoading(false));
+  }, [token]);
+
+  async function handleSign() {
+    setSigning(true);
+    try {
+      const r = await api.confirmMandate(token);
+      if ((r as any).error) { setError((r as any).error); }
+      else { setMandate(r); setSigned(true); }
+    } catch { setError('Erreur lors de la signature.'); }
+    finally { setSigning(false); }
+  }
+
+  const SCOPE_LABELS: Record<string, string> = {
+    vuln_scan: '🔍 Scan de vulnérabilités', fuzzing: '🕸 Découverte d\'endpoints (Fuzzer)',
+    load_test: '⚡ Test de charge', phishing: '🎣 Analyse anti-phishing', fintech_fraud: '💳 Audit fraude API fintech',
+  };
+
+  if (loading) return (
+    <div style={{ minHeight: '100vh', background: '#0a0e1a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ color: '#60a5fa', fontSize: 16 }}>⟳ Chargement du mandat...</div>
+    </div>
+  );
+
+  if (error) return (
+    <div style={{ minHeight: '100vh', background: '#0a0e1a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+        <div style={{ color: '#ff6b35', fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Mandat introuvable</div>
+        <div style={{ color: '#475569', fontSize: 14 }}>{error}</div>
+      </div>
+    </div>
+  );
+
+  if (!mandate) return null;
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#0a0e1a', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '40px 20px' }}>
+      <div style={{ maxWidth: 680, width: '100%' }}>
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#60a5fa', letterSpacing: 3, marginBottom: 4 }}>⬡ INTEL</div>
+          <div style={{ color: '#475569', fontSize: 12, letterSpacing: 1 }}>SECURITY PLATFORM</div>
+        </div>
+
+        {/* Document card */}
+        <div style={{ background: '#0d1424', border: '1px solid #1e293b', borderRadius: 14, overflow: 'hidden' }}>
+          {/* Title bar */}
+          <div style={{ background: '#111827', borderBottom: '1px solid #1e293b', padding: '20px 28px', textAlign: 'center' }}>
+            <div style={{ color: '#e2e8f0', fontSize: 18, fontWeight: 800, letterSpacing: 0.5, marginBottom: 4 }}>
+              LETTRE D'AUTORISATION DE TEST DE SÉCURITÉ
+            </div>
+            <div style={{ color: '#475569', fontSize: 12 }}>Mandat officiel — à signer électroniquement</div>
+          </div>
+
+          <div style={{ padding: '28px 32px' }}>
+            {/* Parties */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
+              <div style={{ background: '#0a0e1a', borderRadius: 8, padding: '16px 18px', border: '1px solid #1e293b' }}>
+                <div style={{ color: '#64748b', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Testeur (prestataire)</div>
+                <div style={{ color: '#e2e8f0', fontWeight: 700, fontSize: 14 }}>{mandate.tester_company}</div>
+              </div>
+              <div style={{ background: '#0a0e1a', borderRadius: 8, padding: '16px 18px', border: '1px solid #1e293b' }}>
+                <div style={{ color: '#64748b', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Client (propriétaire)</div>
+                <div style={{ color: '#e2e8f0', fontWeight: 700, fontSize: 14 }}>{mandate.client_company}</div>
+                <div style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>{mandate.client_name} · {mandate.client_email}</div>
+              </div>
+            </div>
+
+            {/* Period */}
+            <div style={{ background: '#0a0e1a', borderRadius: 8, padding: '14px 18px', border: '1px solid #1e293b', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: 20 }}>📅</span>
+              <div>
+                <div style={{ color: '#64748b', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 3 }}>Période d'autorisation</div>
+                <div style={{ color: '#e2e8f0', fontWeight: 600, fontSize: 14 }}>
+                  Du {new Date(mandate.valid_from).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} au {new Date(mandate.valid_until).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </div>
+              </div>
+            </div>
+
+            {/* Target URLs */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ color: '#64748b', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Systèmes cibles autorisés</div>
+              {mandate.target_urls.map((u, i) => (
+                <div key={i} style={{ background: '#0a0e1a', border: '1px solid #1e293b', borderRadius: 6, padding: '8px 14px', marginBottom: 6, color: '#60a5fa', fontSize: 13, fontFamily: 'monospace' }}>
+                  {u}
+                </div>
+              ))}
+            </div>
+
+            {/* Scope */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ color: '#64748b', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Types de tests autorisés</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {mandate.scope.map((s, i) => (
+                  <span key={i} style={{ background: '#1d4ed820', border: '1px solid #1d4ed860', borderRadius: 6, padding: '6px 12px', fontSize: 12, color: '#60a5fa' }}>
+                    {SCOPE_LABELS[s] ?? s}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Notes */}
+            {mandate.notes && (
+              <div style={{ background: '#0a0e1a', border: '1px solid #fbbf2430', borderRadius: 8, padding: '14px 18px', marginBottom: 20 }}>
+                <div style={{ color: '#fbbf24', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>⚠️ Restrictions & conditions</div>
+                <div style={{ color: '#cbd5e1', fontSize: 13 }}>{mandate.notes}</div>
+              </div>
+            )}
+
+            {/* Legal text */}
+            <div style={{ border: '1px solid #1e293b', borderRadius: 8, padding: '16px 18px', marginBottom: 24, color: '#64748b', fontSize: 12, lineHeight: 1.7 }}>
+              En signant ce mandat, <strong style={{ color: '#94a3b8' }}>{mandate.client_name}</strong> agissant au nom de <strong style={{ color: '#94a3b8' }}>{mandate.client_company}</strong>,
+              déclare être propriétaire ou administrateur légitimement autorisé des systèmes cibles listés ci-dessus, et autorise expressément
+              <strong style={{ color: '#94a3b8' }}> {mandate.tester_company}</strong> à effectuer les tests de sécurité définis dans le périmètre du présent mandat,
+              pendant la période indiquée. Toute utilisation en dehors de ce cadre est strictement interdite.
+            </div>
+
+            {/* Action */}
+            {signed ? (
+              <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
+                <div style={{ color: '#60d394', fontSize: 18, fontWeight: 800, marginBottom: 6 }}>Mandat signé avec succès</div>
+                <div style={{ color: '#475569', fontSize: 13 }}>
+                  {mandate.signed_at && `Signé le ${new Date(mandate.signed_at).toLocaleString('fr-FR')}`}
+                </div>
+                <div style={{ color: '#334155', fontSize: 12, marginTop: 8 }}>
+                  Votre adresse IP a été enregistrée à titre de preuve d'engagement.
+                </div>
+              </div>
+            ) : (
+              <div>
+                <button onClick={handleSign} disabled={signing}
+                  style={{ width: '100%', padding: '16px 0', background: signing ? '#1e293b' : 'linear-gradient(135deg, #1d4ed8, #2563eb)', color: '#fff', border: 'none', borderRadius: 10, fontSize: 16, fontWeight: 800, cursor: signing ? 'not-allowed' : 'pointer', letterSpacing: 0.5, boxShadow: signing ? 'none' : '0 4px 20px #1d4ed840' }}>
+                  {signing ? '⟳ Signature en cours...' : '✍️ J\'autorise les tests de sécurité'}
+                </button>
+                <div style={{ textAlign: 'center', color: '#334155', fontSize: 11, marginTop: 10 }}>
+                  En cliquant, votre adresse IP et la date/heure seront enregistrées comme preuve.
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={{ textAlign: 'center', color: '#1e293b', fontSize: 11, marginTop: 20 }}>
+          INTEL Security Platform · Document légalement engageant
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function Badge({ s }: { s: string }) {
   const c: Record<string, string> = { completed: '#60d394', running: '#60a5fa', failed: '#ff3b5c', pending: '#94a3b8' };
@@ -165,7 +331,7 @@ function FraudCheckRow({ c }: { c: FraudCheck }) {
   );
 }
 
-export default function App() {
+function AppInner() {
   const [tab, setTab] = useState<Tab>('phishing');
   const [scans, setScans] = useState<Scan[]>([]);
   const [fuzzes, setFuzzes] = useState<FuzzJob[]>([]);
@@ -195,12 +361,36 @@ export default function App() {
   const [fraudTarget, setFraudTarget] = useState('https://');
   const [fraudLoading, setFraudLoading] = useState(false);
 
+  // Mandats state
+  const [mandates, setMandates] = useState<Mandate[]>([]);
+  const [mTesterCompany, setMTesterCompany] = useState('');
+  const [mClientName, setMClientName] = useState('');
+  const [mClientEmail, setMClientEmail] = useState('');
+  const [mClientCompany, setMClientCompany] = useState('');
+  const [mTargetUrls, setMTargetUrls] = useState('');
+  const [mScope, setMScope] = useState<string[]>([]);
+  const [mValidFrom, setMValidFrom] = useState(new Date().toISOString().split('T')[0]);
+  const [mValidUntil, setMValidUntil] = useState(() => { const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString().split('T')[0]; });
+  const [mNotes, setMNotes] = useState('');
+  const [mLoading, setMLoading] = useState(false);
+  const [mError, setMError] = useState('');
+  const [mCopied, setMCopied] = useState<string | null>(null);
+
+  const SCOPE_OPTIONS = [
+    { id: 'vuln_scan', label: '🔍 Scan de vulnérabilités' },
+    { id: 'fuzzing', label: '🕸 Découverte d\'endpoints (Fuzzer)' },
+    { id: 'load_test', label: '⚡ Test de charge (stress test)' },
+    { id: 'phishing', label: '🎣 Analyse anti-phishing' },
+    { id: 'fintech_fraud', label: '💳 Audit fraude API fintech' },
+  ];
+
   const refresh = useCallback(async () => {
-    const [s, f, l, p, fa] = await Promise.all([
+    const [s, f, l, p, fa, m] = await Promise.all([
       api.getScans(), api.getFuzzJobs(), api.getLoadTests(),
       api.getPhishingAssessments(), api.getFintechFraudAudits(),
+      api.getMandates(),
     ]);
-    setScans(s); setFuzzes(f); setLoadTests(l); setPhishings(p); setFraudAudits(fa);
+    setScans(s); setFuzzes(f); setLoadTests(l); setPhishings(p); setFraudAudits(fa); setMandates(m);
     if (selected) {
       const fresh = [...s, ...f, ...l, ...p, ...fa].find(x => x.id === selected.id);
       if (fresh) setSelected(fresh);
@@ -237,6 +427,36 @@ export default function App() {
     try { const r = await api.startFintechFraud(fraudTarget); setSelected(r); await refresh(); setTab('history'); } finally { setFraudLoading(false); }
   }
 
+  async function handleCreateMandate(e: React.FormEvent) {
+    e.preventDefault(); setMLoading(true); setMError('');
+    try {
+      const urls = mTargetUrls.split('\n').map(u => u.trim()).filter(Boolean);
+      if (!urls.length) { setMError('Entrez au moins une URL cible.'); return; }
+      if (!mScope.length) { setMError('Sélectionnez au moins un type de test.'); return; }
+      await api.createMandate({
+        tester_company: mTesterCompany || 'INTEL Security',
+        client_name: mClientName, client_email: mClientEmail,
+        client_company: mClientCompany, target_urls: urls, scope: mScope,
+        valid_from: mValidFrom, valid_until: mValidUntil,
+        notes: mNotes || undefined,
+      });
+      setMClientName(''); setMClientEmail(''); setMClientCompany('');
+      setMTargetUrls(''); setMScope([]); setMNotes('');
+      await refresh();
+    } catch { setMError('Erreur lors de la création du mandat.'); }
+    finally { setMLoading(false); }
+  }
+
+  function mandateLink(token: string) {
+    return `${window.location.origin}${window.location.pathname}?mandate=${token}`;
+  }
+
+  function copyLink(token: string) {
+    navigator.clipboard.writeText(mandateLink(token));
+    setMCopied(token);
+    setTimeout(() => setMCopied(null), 2000);
+  }
+
   const urlInput = (val: string, set: (v: string) => void) => (
     <input value={val} onChange={e => set(e.target.value)} required
       style={{ width: '100%', background: '#0a0e1a', border: '1px solid #1e293b', borderRadius: 6, padding: '10px 14px', color: '#e2e8f0', fontSize: 14, fontFamily: 'inherit', marginBottom: 16, outline: 'none' }} />
@@ -257,6 +477,7 @@ export default function App() {
     ['scanner', '🔍 Scanner'],
     ['fuzzer', '🕸 Fuzzer'],
     ['history', '📋 History'],
+    ['mandats', '✍️ Mandats'],
   ];
 
   return (
@@ -734,7 +955,166 @@ export default function App() {
             )}
           </div>
         )}
+
+        {/* ===== MANDATS TAB ===== */}
+        {tab === 'mandats' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, maxWidth: 1100, margin: '0 auto' }}>
+
+            {/* Left: Create mandate form */}
+            <div>
+              <h2 style={{ color: '#e2e8f0', fontSize: 16, fontWeight: 700, marginBottom: 18, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: '#60a5fa' }}>✍️</span> Nouvelle Lettre d'Autorisation
+              </h2>
+              <form onSubmit={handleCreateMandate}>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+                  Votre société (testeur)
+                </label>
+                <input value={mTesterCompany} onChange={e => setMTesterCompany(e.target.value)} placeholder="INTEL Security"
+                  style={{ width: '100%', background: '#0a0e1a', border: '1px solid #1e293b', borderRadius: 6, padding: '10px 14px', color: '#e2e8f0', fontSize: 14, fontFamily: 'inherit', marginBottom: 14, outline: 'none', boxSizing: 'border-box' }} />
+
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+                  Nom du client *
+                </label>
+                <input value={mClientName} onChange={e => setMClientName(e.target.value)} required placeholder="Jean Dupont"
+                  style={{ width: '100%', background: '#0a0e1a', border: '1px solid #1e293b', borderRadius: 6, padding: '10px 14px', color: '#e2e8f0', fontSize: 14, fontFamily: 'inherit', marginBottom: 14, outline: 'none', boxSizing: 'border-box' }} />
+
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+                  Email du client *
+                </label>
+                <input type="email" value={mClientEmail} onChange={e => setMClientEmail(e.target.value)} required placeholder="client@societe.com"
+                  style={{ width: '100%', background: '#0a0e1a', border: '1px solid #1e293b', borderRadius: 6, padding: '10px 14px', color: '#e2e8f0', fontSize: 14, fontFamily: 'inherit', marginBottom: 14, outline: 'none', boxSizing: 'border-box' }} />
+
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+                  Société cliente *
+                </label>
+                <input value={mClientCompany} onChange={e => setMClientCompany(e.target.value)} required placeholder="Acme Corp"
+                  style={{ width: '100%', background: '#0a0e1a', border: '1px solid #1e293b', borderRadius: 6, padding: '10px 14px', color: '#e2e8f0', fontSize: 14, fontFamily: 'inherit', marginBottom: 14, outline: 'none', boxSizing: 'border-box' }} />
+
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+                  URLs cibles * (une par ligne)
+                </label>
+                <textarea value={mTargetUrls} onChange={e => setMTargetUrls(e.target.value)} required rows={3}
+                  placeholder={"https://api.societe.com\nhttps://app.societe.com"}
+                  style={{ width: '100%', background: '#0a0e1a', border: '1px solid #1e293b', borderRadius: 6, padding: '10px 14px', color: '#e2e8f0', fontSize: 14, fontFamily: 'inherit', marginBottom: 14, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
+
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+                  Types de tests autorisés *
+                </label>
+                <div style={{ marginBottom: 16 }}>
+                  {SCOPE_OPTIONS.map(opt => (
+                    <label key={opt.id} style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#cbd5e1', fontSize: 13, marginBottom: 8, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={mScope.includes(opt.id)}
+                        onChange={e => setMScope(e.target.checked ? [...mScope, opt.id] : mScope.filter(s => s !== opt.id))}
+                        style={{ accentColor: '#60a5fa', width: 16, height: 16 }} />
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                  <div>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Valide du *</label>
+                    <input type="date" value={mValidFrom} onChange={e => setMValidFrom(e.target.value)} required
+                      style={{ width: '100%', background: '#0a0e1a', border: '1px solid #1e293b', borderRadius: 6, padding: '10px 14px', color: '#e2e8f0', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Au *</label>
+                    <input type="date" value={mValidUntil} onChange={e => setMValidUntil(e.target.value)} required
+                      style={{ width: '100%', background: '#0a0e1a', border: '1px solid #1e293b', borderRadius: 6, padding: '10px 14px', color: '#e2e8f0', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+                  </div>
+                </div>
+
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+                  Notes / restrictions
+                </label>
+                <textarea value={mNotes} onChange={e => setMNotes(e.target.value)} rows={2}
+                  placeholder="Tests hors heures de bureau uniquement, pas de DoS, etc."
+                  style={{ width: '100%', background: '#0a0e1a', border: '1px solid #1e293b', borderRadius: 6, padding: '10px 14px', color: '#e2e8f0', fontSize: 14, fontFamily: 'inherit', marginBottom: 14, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
+
+                {mError && <div style={{ color: '#ff6b35', fontSize: 13, marginBottom: 12 }}>{mError}</div>}
+
+                <button type="submit" disabled={mLoading}
+                  style={{ width: '100%', padding: '12px 0', background: mLoading ? '#1e293b' : '#1d4ed8', color: '#fff', border: 'none', borderRadius: 8, fontSize: 15, fontWeight: 700, cursor: mLoading ? 'not-allowed' : 'pointer', letterSpacing: 0.5 }}>
+                  {mLoading ? 'Création...' : '⚡ Générer le mandat'}
+                </button>
+              </form>
+            </div>
+
+            {/* Right: Mandate list */}
+            <div>
+              <h2 style={{ color: '#e2e8f0', fontSize: 16, fontWeight: 700, marginBottom: 18, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: '#60a5fa' }}>📋</span> Mandats émis ({mandates.length})
+              </h2>
+              {mandates.length === 0 && (
+                <div style={{ color: '#334155', fontSize: 13, textAlign: 'center', padding: 40, border: '1px dashed #1e293b', borderRadius: 10 }}>
+                  Aucun mandat créé.<br />Utilisez le formulaire pour générer le premier.
+                </div>
+              )}
+              {mandates.map(m => {
+                const statusColor = m.status === 'authorized' ? '#60d394' : m.status === 'expired' ? '#475569' : '#fbbf24';
+                const statusLabel = m.status === 'authorized' ? '✓ Signé' : m.status === 'expired' ? '✕ Expiré' : '⏳ En attente';
+                return (
+                  <div key={m.id} style={{ background: '#0d1424', border: `1px solid ${m.status === 'authorized' ? '#1a4a2e' : '#1e293b'}`, borderRadius: 10, padding: '14px 16px', marginBottom: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                      <div>
+                        <div style={{ color: '#e2e8f0', fontWeight: 700, fontSize: 14 }}>{m.client_company}</div>
+                        <div style={{ color: '#64748b', fontSize: 12 }}>{m.client_name} · {m.client_email}</div>
+                      </div>
+                      <span style={{ color: statusColor, fontSize: 12, fontWeight: 700, background: `${statusColor}18`, padding: '3px 8px', borderRadius: 20, whiteSpace: 'nowrap' }}>
+                        {statusLabel}
+                      </span>
+                    </div>
+
+                    <div style={{ fontSize: 11, color: '#475569', marginBottom: 8 }}>
+                      📅 {new Date(m.valid_from).toLocaleDateString('fr-FR')} → {new Date(m.valid_until).toLocaleDateString('fr-FR')}
+                    </div>
+
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10 }}>
+                      {m.target_urls.map((u, i) => (
+                        <span key={i} style={{ background: '#0a0e1a', border: '1px solid #1e293b', borderRadius: 4, padding: '2px 7px', fontSize: 10, color: '#60a5fa' }}>{u}</span>
+                      ))}
+                    </div>
+
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 12 }}>
+                      {m.scope.map((s, i) => {
+                        const opt = SCOPE_OPTIONS.find(o => o.id === s);
+                        return <span key={i} style={{ background: '#1e293b', borderRadius: 4, padding: '2px 7px', fontSize: 10, color: '#94a3b8' }}>{opt ? opt.label : s}</span>;
+                      })}
+                    </div>
+
+                    {m.status === 'authorized' && m.signed_at && (
+                      <div style={{ fontSize: 11, color: '#60d394', marginBottom: 10 }}>
+                        ✓ Signé le {new Date(m.signed_at).toLocaleString('fr-FR')} · IP: {m.signed_ip}
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {m.status === 'pending' && (
+                        <button onClick={() => copyLink(m.token)}
+                          style={{ flex: 1, padding: '7px 0', background: mCopied === m.token ? '#1a4a2e' : '#1e293b', color: mCopied === m.token ? '#60d394' : '#94a3b8', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                          {mCopied === m.token ? '✓ Lien copié !' : '🔗 Copier le lien client'}
+                        </button>
+                      )}
+                      {m.status !== 'expired' && (
+                        <button onClick={async () => { await api.revokeMandate(m.id); await refresh(); }}
+                          style={{ padding: '7px 14px', background: 'transparent', color: '#ff3b5c', border: '1px solid #ff3b5c33', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>
+                          Révoquer
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
+}
+
+export default function App() {
+  const mandateToken = new URLSearchParams(window.location.search).get('mandate');
+  if (mandateToken) return <ClientConfirmPage token={mandateToken} />;
+  return <AppInner />;
 }

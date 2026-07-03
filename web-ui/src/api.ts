@@ -101,6 +101,24 @@ export interface FintechFraudAudit {
   completed_at?: string;
 }
 
+export interface Mandate {
+  id: string;
+  tester_company: string;
+  client_name: string;
+  client_email: string;
+  client_company: string;
+  target_urls: string[];
+  scope: string[];
+  status: 'pending' | 'authorized' | 'expired';
+  token: string;
+  valid_from: string;
+  valid_until: string;
+  notes?: string;
+  signed_ip?: string;
+  signed_at?: string;
+  created_at: string;
+}
+
 export const api = {
   async getScans(): Promise<Scan[]> {
     const r = await fetch(`${BASE}/scans`);
@@ -169,5 +187,33 @@ export const api = {
       body: JSON.stringify({ target_url }),
     });
     return r.json();
+  },
+
+  async getMandates(): Promise<Mandate[]> {
+    const r = await fetch(`${BASE}/mandates`);
+    return r.json();
+  },
+  async createMandate(data: {
+    tester_company: string; client_name: string; client_email: string;
+    client_company: string; target_urls: string[]; scope: string[];
+    valid_from: string; valid_until: string; notes?: string;
+  }): Promise<Mandate> {
+    const r = await fetch(`${BASE}/mandates`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return r.json();
+  },
+  async getMandateByToken(token: string): Promise<Mandate> {
+    const r = await fetch(`${BASE}/mandates/confirm/${token}`);
+    return r.json();
+  },
+  async confirmMandate(token: string): Promise<Mandate> {
+    const r = await fetch(`${BASE}/mandates/confirm/${token}`, { method: 'POST' });
+    return r.json();
+  },
+  async revokeMandate(id: string): Promise<void> {
+    await fetch(`${BASE}/mandates/${id}`, { method: 'DELETE' });
   },
 };
