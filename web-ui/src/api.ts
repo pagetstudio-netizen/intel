@@ -1,5 +1,28 @@
 const BASE = '/api';
 
+export interface PhishingCheck {
+  id: string;
+  name: string;
+  category: 'email' | 'http' | 'dns' | 'ssl';
+  passed: boolean;
+  risk: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  detail: string;
+  fix: string;
+}
+
+export interface PhishingAssessment {
+  id: string;
+  target_url: string;
+  domain: string;
+  status: 'running' | 'completed' | 'failed';
+  risk_score: number;
+  risk_level: 'CRITIQUE' | 'ÉLEVÉ' | 'MOYEN' | 'FAIBLE' | 'UNKNOWN';
+  checks: PhishingCheck[];
+  summary?: string;
+  created_at: string;
+  completed_at?: string;
+}
+
 export interface LoadTest {
   id: string;
   target_url: string;
@@ -97,6 +120,18 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ target_url, concurrent_users, rps, duration_seconds }),
+    });
+    return r.json();
+  },
+  async getPhishingAssessments(): Promise<PhishingAssessment[]> {
+    const r = await fetch(`${BASE}/phishing`);
+    return r.json();
+  },
+  async startPhishing(target_url: string): Promise<PhishingAssessment> {
+    const r = await fetch(`${BASE}/phishing`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_url }),
     });
     return r.json();
   },
