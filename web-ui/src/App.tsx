@@ -218,9 +218,27 @@ export default function App() {
             <form onSubmit={handleLoadTest} style={{ background: '#0d1424', border: '1px solid #1e293b', borderRadius: 10, padding: 28 }}>
               <label style={{ display: 'block', color: '#94a3b8', fontSize: 12, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>URL du site client</label>
               {urlInput(ltTarget, setLtTarget)}
-              {slider('Utilisateurs simultanés', ltUsers, setLtUsers, 1, 500)}
-              {slider('Requêtes / seconde par user', ltRps, setLtRps, 1, 100)}
-              {slider('Durée du test', ltDuration, setLtDuration, 5, 120, 's')}
+
+              {/* Quick presets */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+                {([
+                  { label: '10k req', u: 100, r: 10, d: 10 },
+                  { label: '25k req', u: 250, r: 10, d: 10 },
+                  { label: '50k req', u: 500, r: 10, d: 10 },
+                  { label: '50k rapide', u: 1000, r: 50, d: 1 },
+                  { label: 'MAX', u: 2000, r: 500, d: 300 },
+                ] as { label: string; u: number; r: number; d: number }[]).map(p => (
+                  <button key={p.label} type="button"
+                    onClick={() => { setLtUsers(p.u); setLtRps(p.r); setLtDuration(p.d); }}
+                    style={{ background: '#0a0e1a', border: '1px solid #334155', borderRadius: 6, color: '#94a3b8', fontSize: 11, padding: '5px 10px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+
+              {slider('Utilisateurs simultanés', ltUsers, setLtUsers, 1, 2000)}
+              {slider('Requêtes / seconde par user', ltRps, setLtRps, 1, 500)}
+              {slider('Durée du test', ltDuration, setLtDuration, 5, 300, 's')}
               <div style={{ background: '#0a0e1a', border: '1px solid #1e293b', borderRadius: 6, padding: '12px 16px', marginBottom: 20, fontSize: 12, color: '#64748b' }}>
                 Estimation : <span style={{ color: '#60a5fa' }}>{ltUsers * ltRps} req/s</span> × <span style={{ color: '#60a5fa' }}>{ltDuration}s</span> = <span style={{ color: '#fbbf24' }}>~{ltUsers * ltRps * ltDuration} requêtes</span>
               </div>

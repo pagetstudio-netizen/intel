@@ -9,9 +9,9 @@ const BINARY = path.join(__dirname, '../../../security-core/target/release/intel
 
 // ── Limits ───────────────────────────────────────────────────────────────────
 const LIMITS = {
-  concurrent_users: { min: 1, max: 500 },
-  rps:              { min: 1, max: 100 },
-  duration_seconds: { min: 5, max: 120 },
+  concurrent_users: { min: 1, max: 2000 },
+  rps:              { min: 1, max: 500 },
+  duration_seconds: { min: 5, max: 300 },
 };
 
 // ── SSRF guard ────────────────────────────────────────────────────────────────
