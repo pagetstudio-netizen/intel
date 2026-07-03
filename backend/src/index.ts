@@ -9,6 +9,7 @@ import demoEmailRouter from './routes/demo-email';
 import fintechFraudRouter from './routes/fintech-fraud';
 import mandatesRouter from './routes/mandates';
 import osintRouter from './routes/osint';
+import authAuditRouter from './routes/auth-audit';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000');
@@ -34,6 +35,7 @@ app.use('/api/demo-email', demoEmailRouter);
 app.use('/api/fintech-fraud', fintechFraudRouter);
 app.use('/api/mandates', mandatesRouter);
 app.use('/api/osint', osintRouter);
+app.use('/api/auth-audit', authAuditRouter);
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`INTEL API running on port ${PORT}`);

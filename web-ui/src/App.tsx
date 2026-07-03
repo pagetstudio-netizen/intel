@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { api, Scan, FuzzJob, LoadTest, PhishingAssessment, PhishingCheck, FintechFraudAudit, FraudCheck, Mandate, OsintScan } from './api';
+import { api, Scan, FuzzJob, LoadTest, PhishingAssessment, PhishingCheck, FintechFraudAudit, FraudCheck, Mandate, OsintScan, AuthAudit, AuthCheck, ExposedEndpoint } from './api';
 import './app.css';
 
-type Tab = 'phishing' | 'fraud' | 'loadtest' | 'scanner' | 'fuzzer' | 'history' | 'mandats' | 'osint';
+type Tab = 'phishing' | 'fraud' | 'loadtest' | 'scanner' | 'fuzzer' | 'history' | 'mandats' | 'osint' | 'authaudit';
 
 const SEV_COLOR: Record<string, string> = {
   CRITICAL: '#ff3b5c', HIGH: '#ff6b35', MEDIUM: '#fbbf24', LOW: '#60d394', INFO: '#60a5fa',
@@ -361,6 +361,12 @@ function AppInner() {
   const [fraudTarget, setFraudTarget] = useState('https://');
   const [fraudLoading, setFraudLoading] = useState(false);
 
+  // Auth audit state
+  const [authAudits, setAuthAudits] = useState<AuthAudit[]>([]);
+  const [authTarget, setAuthTarget] = useState('https://');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [activeAuthAudit, setActiveAuthAudit] = useState<AuthAudit | null>(null);
+
   // OSINT state
   const [osintScans, setOsintScans] = useState<OsintScan[]>([]);
   const [osintDomain, setOsintDomain] = useState('');
@@ -391,12 +397,16 @@ function AppInner() {
   ];
 
   const refresh = useCallback(async () => {
-    const [s, f, l, p, fa, m, os] = await Promise.all([
+    const [s, f, l, p, fa, m, os, aa] = await Promise.all([
       api.getScans(), api.getFuzzJobs(), api.getLoadTests(),
       api.getPhishingAssessments(), api.getFintechFraudAudits(),
-      api.getMandates(), api.getOsintScans(),
+      api.getMandates(), api.getOsintScans(), api.getAuthAudits(),
     ]);
-    setScans(s); setFuzzes(f); setLoadTests(l); setPhishings(p); setFraudAudits(fa); setMandates(m); setOsintScans(os);
+    setScans(s); setFuzzes(f); setLoadTests(l); setPhishings(p); setFraudAudits(fa); setMandates(m); setOsintScans(os); setAuthAudits(aa);
+    if (activeAuthAudit) {
+      const fresh = aa.find(x => x.id === activeAuthAudit.id);
+      if (fresh) setActiveAuthAudit(fresh);
+    }
     if (activeOsint) {
       const fresh = os.find(x => x.id === activeOsint.id);
       if (fresh) setActiveOsint(fresh);
@@ -435,6 +445,10 @@ function AppInner() {
   async function handleFraud(e: React.FormEvent) {
     e.preventDefault(); setFraudLoading(true);
     try { const r = await api.startFintechFraud(fraudTarget); setSelected(r); await refresh(); setTab('history'); } finally { setFraudLoading(false); }
+  }
+  async function handleAuthAudit(e: React.FormEvent) {
+    e.preventDefault(); setAuthLoading(true); setActiveAuthAudit(null);
+    try { const r = await api.startAuthAudit(authTarget); setActiveAuthAudit(r); } finally { setAuthLoading(false); }
   }
   async function handleOsint(e: React.FormEvent) {
     e.preventDefault(); setOsintLoading(true); setActiveOsint(null);
@@ -487,6 +501,7 @@ function AppInner() {
   const TABS: [Tab, string][] = [
     ['phishing', '🎣 Phishing'],
     ['fraud', '💳 Fraude API'],
+    ['authaudit', '🔐 Auth Audit'],
     ['loadtest', '⚡ Load Test'],
     ['scanner', '🔍 Scanner'],
     ['fuzzer', '🕸 Fuzzer'],
@@ -1160,6 +1175,16 @@ function AppInner() {
           </div>
         )}
 
+        {/* ===== AUTH AUDIT TAB ===== */}
+        {tab === 'authaudit' && (
+          <AuthAuditTab
+            authTarget={authTarget} setAuthTarget={setAuthTarget}
+            handleAuthAudit={handleAuthAudit} authLoading={authLoading}
+            activeAuthAudit={activeAuthAudit} authAudits={authAudits}
+            setActiveAuthAudit={setActiveAuthAudit}
+          />
+        )}
+
         {/* ===== OSINT TAB ===== */}
         {tab === 'osint' && (
           <OsintTab
@@ -1170,6 +1195,222 @@ function AppInner() {
           />
         )}
       </main>
+    </div>
+  );
+}
+
+const AUTH_CAT_ICON: Record<string, string> = {
+  unauth_access: '🚪', cookie: '🍪', bypass: '🔓', admin: '👑', token: '🎫', header: '📋',
+};
+const AUTH_CAT_LABEL: Record<string, string> = {
+  unauth_access: 'Accès non autorisé', cookie: 'Sécurité cookies', bypass: 'Contournement auth',
+  admin: 'Exposition admin', token: 'Exposition token', header: 'Headers',
+};
+
+function AuthCheckRow({ c }: { c: AuthCheck }) {
+  const [open, setOpen] = useState(false);
+  const color = SEV_COLOR[c.risk] ?? '#60a5fa';
+  return (
+    <div style={{ borderLeft: `3px solid ${c.passed ? '#60d394' : color}`, background: '#0a0e1a', borderRadius: '0 6px 6px 0', marginBottom: 6, cursor: 'pointer' }} onClick={() => setOpen(o => !o)}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px' }}>
+        <span style={{ fontSize: 14 }}>{AUTH_CAT_ICON[c.category] ?? '🔒'}</span>
+        <span style={{ flex: 1, color: '#e2e8f0', fontSize: 13, fontWeight: 600 }}>{c.name}</span>
+        {!c.passed && <span style={{ color, fontSize: 10, fontWeight: 700, background: `${color}22`, padding: '2px 8px', borderRadius: 4 }}>{c.risk}</span>}
+        <span style={{ color: c.passed ? '#60d394' : '#ff3b5c', fontSize: 16 }}>{c.passed ? '✓' : '✗'}</span>
+      </div>
+      {open && (
+        <div style={{ padding: '0 14px 12px 38px' }}>
+          <div style={{ color: '#94a3b8', fontSize: 12, marginBottom: 6 }}>{c.detail}</div>
+          {!c.passed && <div style={{ color: '#60a5fa', fontSize: 11 }}>💡 {c.fix}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AuthAuditTab({ authTarget, setAuthTarget, handleAuthAudit, authLoading, activeAuthAudit, authAudits, setActiveAuthAudit }: {
+  authTarget: string; setAuthTarget: (v: string) => void;
+  handleAuthAudit: (e: React.FormEvent) => void; authLoading: boolean;
+  activeAuthAudit: AuthAudit | null; authAudits: AuthAudit[];
+  setActiveAuthAudit: (a: AuthAudit | null) => void;
+}) {
+  const display = activeAuthAudit ?? authAudits[0] ?? null;
+  const RISK_C: Record<string, string> = { CRITIQUE: '#ff3b5c', ÉLEVÉ: '#ff6b35', MOYEN: '#fbbf24', FAIBLE: '#60d394', UNKNOWN: '#475569' };
+
+  const cats = display?.checks
+    ? Array.from(new Set(display.checks.map(c => c.category)))
+    : [];
+
+  const unprotected = display?.exposed_endpoints?.filter(e => !e.auth_required) ?? [];
+  const protected_ = display?.exposed_endpoints?.filter(e => e.auth_required) ?? [];
+
+  return (
+    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: display ? '360px 1fr' : '1fr', gap: 24 }}>
+
+        {/* Left: form + history */}
+        <div>
+          <h2 style={{ color: '#e2e8f0', fontSize: 16, fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ color: '#ef4444' }}>🔐</span> Audit Auth — Détection d'accès non autorisés
+          </h2>
+          <p style={{ color: '#475569', fontSize: 12, marginBottom: 18, lineHeight: 1.6 }}>
+            Détecte les endpoints qui exposent des données sans token, les panels admin accessibles sans mot de passe,
+            les bypass JWT (alg:none, Bearer null) et les mauvaises configurations de cookies de session.
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 18 }}>
+            {[
+              ['🚪', 'Endpoints non protégés', 'Données accessibles sans token'],
+              ['👑', 'Admin sans password', '/admin, /api/admin, /config'],
+              ['🔓', 'Bypass JWT', 'alg:none, Bearer null, token vide'],
+              ['🍪', 'Cookies non sécurisés', 'HttpOnly, Secure, SameSite manquants'],
+            ].map(([icon, title, desc]) => (
+              <div key={String(title)} style={{ background: '#0d1424', border: '1px solid #ef444420', borderRadius: 8, padding: '10px 12px' }}>
+                <div style={{ fontSize: 16, marginBottom: 4 }}>{icon}</div>
+                <div style={{ color: '#fca5a5', fontSize: 11, fontWeight: 700, marginBottom: 2 }}>{title}</div>
+                <div style={{ color: '#475569', fontSize: 10 }}>{desc}</div>
+              </div>
+            ))}
+          </div>
+
+          <form onSubmit={handleAuthAudit} style={{ marginBottom: 20 }}>
+            <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+              URL du site cible *
+            </label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input value={authTarget} onChange={e => setAuthTarget(e.target.value)} required
+                placeholder="https://api.client.com"
+                style={{ flex: 1, background: '#0a0e1a', border: '1px solid #1e293b', borderRadius: 6, padding: '10px 14px', color: '#e2e8f0', fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+              <button type="submit" disabled={authLoading}
+                style={{ padding: '10px 16px', background: authLoading ? '#1e293b' : 'linear-gradient(135deg, #dc2626, #991b1b)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: authLoading ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
+                {authLoading ? '⟳' : '🔐 Auditer'}
+              </button>
+            </div>
+            <div style={{ color: '#334155', fontSize: 11, marginTop: 8, lineHeight: 1.5 }}>
+              ⚠️ Audit passif. Aucune donnée réelle n'est extraite — seuls les codes HTTP et tailles de réponse sont enregistrés.
+            </div>
+          </form>
+
+          {/* History */}
+          {authAudits.length > 0 && (
+            <div>
+              <div style={{ color: '#475569', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Historique</div>
+              {authAudits.map(a => (
+                <div key={a.id} onClick={() => setActiveAuthAudit(a)}
+                  style={{ background: '#0d1424', border: `1px solid ${display?.id === a.id ? '#dc2626' : '#1e293b'}`, borderRadius: 8, padding: '10px 14px', marginBottom: 6, cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: '#e2e8f0', fontWeight: 600, fontSize: 13 }}>{a.domain}</span>
+                    <span style={{ color: a.status === 'completed' ? (RISK_C[a.risk_level] ?? '#94a3b8') : a.status === 'running' ? '#60a5fa' : '#ff3b5c', fontSize: 11, fontWeight: 700 }}>
+                      {a.status === 'running' ? '⟳ En cours' : a.status === 'completed' ? `${a.risk_score}% risque` : '✗ Erreur'}
+                    </span>
+                  </div>
+                  {a.status === 'completed' && (
+                    <div style={{ color: '#475569', fontSize: 11, marginTop: 3 }}>
+                      {(a.exposed_endpoints ?? []).filter(e => !e.auth_required).length} endpoint(s) exposé(s) · {(a.checks ?? []).filter(c => !c.passed).length} problème(s)
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Right: results */}
+        {display && (
+          <div style={{ background: '#0d1424', border: '1px solid #1e293b', borderRadius: 12, padding: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+              <div>
+                <div style={{ color: '#e2e8f0', fontWeight: 800, fontSize: 17 }}>{display.domain}</div>
+                <div style={{ color: '#475569', fontSize: 12 }}>
+                  {display.status === 'running' ? '⟳ Audit en cours...' : display.status === 'completed' ? `Terminé — ${new Date(display.completed_at!).toLocaleString('fr-FR')}` : '✗ Échec'}
+                </div>
+              </div>
+              {display.status === 'completed' && display.risk_level !== 'UNKNOWN' && (
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ color: RISK_C[display.risk_level], fontSize: 22, fontWeight: 800 }}>{display.risk_score}%</div>
+                  <div style={{ color: RISK_C[display.risk_level], fontSize: 12, fontWeight: 700 }}>Risque {display.risk_level}</div>
+                </div>
+              )}
+            </div>
+
+            {display.status === 'running' && (
+              <div style={{ color: '#60a5fa', fontSize: 13, textAlign: 'center', padding: '30px 0' }}>
+                ⟳ Sonde en cours — test des endpoints, cookies, bypass JWT...
+              </div>
+            )}
+
+            {display.status === 'completed' && (
+              <>
+                {/* Summary */}
+                {display.summary && (
+                  <div style={{ background: '#0a0e1a', border: `1px solid ${RISK_C[display.risk_level] ?? '#1e293b'}30`, borderRadius: 8, padding: '12px 16px', marginBottom: 20, color: '#e2e8f0', fontSize: 13, lineHeight: 1.6 }}>
+                    {display.summary}
+                  </div>
+                )}
+
+                {/* Stats row */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 20 }}>
+                  {[
+                    { label: 'Endpoints exposés', val: unprotected.length, color: unprotected.length > 0 ? '#ff3b5c' : '#60d394', icon: '🚪' },
+                    { label: 'Protégés (401/403)', val: protected_.length, color: '#60d394', icon: '✅' },
+                    { label: 'Checks échoués', val: (display.checks ?? []).filter(c => !c.passed).length, color: (display.checks ?? []).filter(c => !c.passed).length > 0 ? '#ff6b35' : '#60d394', icon: '⚠️' },
+                  ].map(s => (
+                    <div key={s.label} style={{ background: '#0a0e1a', borderRadius: 8, padding: '10px 12px', textAlign: 'center', border: '1px solid #1e293b' }}>
+                      <div style={{ fontSize: 18, marginBottom: 4 }}>{s.icon}</div>
+                      <div style={{ color: s.color, fontSize: 20, fontWeight: 800 }}>{s.val}</div>
+                      <div style={{ color: '#475569', fontSize: 10 }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Exposed endpoints */}
+                {unprotected.length > 0 && (
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ color: '#ff3b5c', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+                      🚨 Endpoints exposés sans authentification ({unprotected.length})
+                    </div>
+                    <div style={{ background: '#0a0e1a', borderRadius: 8, border: '1px solid #ff3b5c30', overflow: 'hidden' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '50px 1fr 60px 70px 50px', gap: 0, padding: '6px 12px', borderBottom: '1px solid #1e293b', fontSize: 10, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        <span>Méth.</span><span>Chemin</span><span>Status</span><span>Taille</span><span>JSON</span>
+                      </div>
+                      {unprotected.map((ep, i) => (
+                        <div key={i} style={{ display: 'grid', gridTemplateColumns: '50px 1fr 60px 70px 50px', gap: 0, padding: '8px 12px', borderBottom: i < unprotected.length - 1 ? '1px solid #1e293b10' : 'none', fontSize: 12 }}>
+                          <span style={{ color: '#60a5fa', fontWeight: 700, fontFamily: 'monospace' }}>{ep.method}</span>
+                          <span style={{ color: '#fbbf24', fontFamily: 'monospace' }}>{ep.path}</span>
+                          <span style={{ color: ep.status < 300 ? '#60d394' : '#fbbf24', fontWeight: 700 }}>{ep.status}</span>
+                          <span style={{ color: '#94a3b8' }}>{ep.response_size > 1024 ? `${(ep.response_size / 1024).toFixed(1)}KB` : `${ep.response_size}B`}</span>
+                          <span style={{ color: ep.has_json ? '#ff6b35' : '#475569' }}>{ep.has_json ? 'JSON' : '—'}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ color: '#475569', fontSize: 11, marginTop: 6 }}>
+                      ℹ️ Seuls le code HTTP et la taille de réponse sont enregistrés. Le contenu des données n'est pas extrait.
+                    </div>
+                  </div>
+                )}
+
+                {/* Checks by category */}
+                {cats.map(cat => {
+                  const catChecks = (display.checks ?? []).filter(c => c.category === cat);
+                  const hasFail = catChecks.some(c => !c.passed);
+                  return (
+                    <div key={cat} style={{ marginBottom: 16 }}>
+                      <div style={{ color: hasFail ? '#94a3b8' : '#475569', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+                        {AUTH_CAT_ICON[cat]} {AUTH_CAT_LABEL[cat] ?? cat}
+                      </div>
+                      {catChecks.map(c => <AuthCheckRow key={c.id} c={c} />)}
+                    </div>
+                  );
+                })}
+              </>
+            )}
+
+            {display.status === 'failed' && (
+              <div style={{ color: '#ff6b35', fontSize: 13 }}>✗ Audit échoué — {display.summary}</div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

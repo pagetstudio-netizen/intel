@@ -146,6 +146,39 @@ export interface Mandate {
   created_at: string;
 }
 
+export interface AuthCheck {
+  id: string;
+  name: string;
+  category: 'unauth_access' | 'cookie' | 'bypass' | 'admin' | 'token' | 'header';
+  passed: boolean;
+  risk: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  detail: string;
+  fix: string;
+}
+
+export interface ExposedEndpoint {
+  path: string;
+  method: string;
+  status: number;
+  response_size: number;
+  has_json: boolean;
+  auth_required: boolean;
+}
+
+export interface AuthAudit {
+  id: string;
+  target_url: string;
+  domain: string;
+  status: 'running' | 'completed' | 'failed';
+  checks: AuthCheck[];
+  exposed_endpoints: ExposedEndpoint[];
+  risk_score: number;
+  risk_level: 'CRITIQUE' | 'ÉLEVÉ' | 'MOYEN' | 'FAIBLE' | 'UNKNOWN';
+  summary?: string;
+  created_at: string;
+  completed_at?: string;
+}
+
 export const api = {
   async getScans(): Promise<Scan[]> {
     const r = await fetch(`${BASE}/scans`);
@@ -249,6 +282,19 @@ export const api = {
     const r = await fetch(`${BASE}/mandates/confirm/${token}`);
     return r.json();
   },
+  async getAuthAudits(): Promise<AuthAudit[]> {
+    const r = await fetch(`${BASE}/auth-audit`);
+    return r.json();
+  },
+  async startAuthAudit(target_url: string): Promise<AuthAudit> {
+    const r = await fetch(`${BASE}/auth-audit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_url }),
+    });
+    return r.json();
+  },
+
   async confirmMandate(token: string): Promise<Mandate> {
     const r = await fetch(`${BASE}/mandates/confirm/${token}`, { method: 'POST' });
     return r.json();
