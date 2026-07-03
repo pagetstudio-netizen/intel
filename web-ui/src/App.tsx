@@ -264,13 +264,14 @@ export default function App() {
       <header style={{ background: '#0d1424', borderBottom: '1px solid #1e293b', padding: '14px 28px', display: 'flex', alignItems: 'center', gap: 14 }}>
         <span style={{ fontSize: 18, fontWeight: 700, color: '#60a5fa', letterSpacing: 2 }}>⬡ INTEL</span>
         <span style={{ color: '#475569', fontSize: 12 }}>Security Platform</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div className="nav-tabs">
           {TABS.map(([t, label]) => (
             <button key={t} onClick={() => setTab(t)} style={{
               background: tab === t ? (t === 'fraud' ? '#1a1040' : '#1e3a5f') : 'transparent',
               color: tab === t ? (t === 'fraud' ? '#a78bfa' : '#60a5fa') : '#94a3b8',
               border: tab === t ? `1px solid ${t === 'fraud' ? '#7c3aed' : '#2563eb'}` : '1px solid transparent',
               borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
+              whiteSpace: 'nowrap', flexShrink: 0,
             }}>{label}</button>
           ))}
         </div>
@@ -522,7 +523,7 @@ export default function App() {
 
         {/* 📋 HISTORY */}
         {tab === 'history' && (
-          <div style={{ display: 'grid', gridTemplateColumns: selected ? '1fr 1fr' : '1fr', gap: 24 }}>
+          <div className={selected ? 'history-grid' : 'history-grid no-detail'}>
             <div>
               {/* Phishing */}
               <h3 style={{ color: '#94a3b8', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>🎣 Analyses Phishing</h3>
@@ -595,7 +596,7 @@ export default function App() {
 
             {/* Detail panel */}
             {selected && (
-              <div style={{ background: '#0d1424', border: '1px solid #1e293b', borderRadius: 10, padding: 22, position: 'sticky', top: 20, alignSelf: 'start', maxHeight: '85vh', overflowY: 'auto' }}>
+              <div className="detail-panel">
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
                   <h3 style={{ color: '#60a5fa', fontSize: 14 }}>
                     {'checks' in selected && 'domain' in selected && !('risk_level' in selected && 'category' in (selected as any).checks?.[0] && ['auth', 'csrf', 'cors'].includes((selected as any).checks?.[0]?.category))

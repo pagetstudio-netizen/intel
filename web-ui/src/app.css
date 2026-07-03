@@ -10,3 +10,50 @@ button:hover:not(:disabled) {
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: #0a0e1a; }
 ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+
+/* ── Responsive nav ── */
+.nav-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  margin-left: auto;
+  padding-bottom: 2px;
+}
+.nav-tabs::-webkit-scrollbar { display: none; }
+
+/* ── History two-column layout ── */
+.history-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+.history-grid.no-detail {
+  grid-template-columns: 1fr;
+}
+.detail-panel {
+  position: sticky;
+  top: 20px;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: #0d1424;
+  border: 1px solid #1e293b;
+  border-radius: 10px;
+  padding: 22px;
+}
+
+@media (max-width: 700px) {
+  .history-grid,
+  .history-grid.no-detail {
+    grid-template-columns: 1fr;
+  }
+  .detail-panel {
+    position: static;
+    max-height: none;
+    margin-top: 0;
+  }
+  .hide-mobile { display: none !important; }
+}
