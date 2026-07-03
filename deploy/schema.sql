@@ -99,9 +99,24 @@ CREATE TABLE IF NOT EXISTS osint_scans (
     completed_at  TIMESTAMPTZ
 );
 
+CREATE TABLE IF NOT EXISTS auth_audits (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    target_url       TEXT NOT NULL,
+    domain           TEXT NOT NULL,
+    status           TEXT NOT NULL DEFAULT 'pending',
+    checks           JSONB DEFAULT '[]',
+    exposed_endpoints JSONB DEFAULT '[]',
+    risk_score       INT DEFAULT 0,
+    risk_level       TEXT DEFAULT 'UNKNOWN',
+    summary          TEXT,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at     TIMESTAMPTZ
+);
+
 -- Index
-CREATE INDEX IF NOT EXISTS idx_mandates_token  ON mandates(token);
-CREATE INDEX IF NOT EXISTS idx_mandates_status ON mandates(status);
-CREATE INDEX IF NOT EXISTS idx_osint_domain    ON osint_scans(domain);
+CREATE INDEX IF NOT EXISTS idx_mandates_token    ON mandates(token);
+CREATE INDEX IF NOT EXISTS idx_mandates_status   ON mandates(status);
+CREATE INDEX IF NOT EXISTS idx_osint_domain      ON osint_scans(domain);
+CREATE INDEX IF NOT EXISTS idx_auth_audits_domain ON auth_audits(domain);
 
 SELECT 'INTEL schema applied successfully' AS result;
