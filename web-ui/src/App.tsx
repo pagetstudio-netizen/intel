@@ -41,6 +41,61 @@ function ScoreRing({ score, level }: { score: number; level: string }) {
   );
 }
 
+function DemoEmailPanel({ assessmentId, domain }: { assessmentId: string; domain: string }) {
+  const [to, setTo] = useState('');
+  const [name, setName] = useState(`Support ${domain}`);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<{ ok?: boolean; error?: string; message?: string } | null>(null);
+
+  async function send(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true); setResult(null);
+    try {
+      const r = await fetch('/api/demo-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assessment_id: assessmentId, to_email: to, spoof_name: name }),
+      });
+      setResult(await r.json());
+    } catch { setResult({ error: 'Erreur réseau' }); }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <div style={{ background: '#0a0e1a', border: '1px solid #dc262640', borderRadius: 8, padding: '16px 18px', marginTop: 20 }}>
+      <div style={{ color: '#fbbf24', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
+        🎭 Envoyer l'email de preuve au client
+      </div>
+      <form onSubmit={send}>
+        <div style={{ marginBottom: 10 }}>
+          <label style={{ display: 'block', color: '#64748b', fontSize: 11, marginBottom: 4, textTransform: 'uppercase' }}>Email du client (destinataire)</label>
+          <input value={to} onChange={e => setTo(e.target.value)} required type="email" placeholder="client@sondomaine.com"
+            style={{ width: '100%', background: '#0d1424', border: '1px solid #1e293b', borderRadius: 5, padding: '8px 12px', color: '#e2e8f0', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ display: 'block', color: '#64748b', fontSize: 11, marginBottom: 4, textTransform: 'uppercase' }}>Nom affiché (expéditeur usurpé)</label>
+          <input value={name} onChange={e => setName(e.target.value)} required
+            style={{ width: '100%', background: '#0d1424', border: '1px solid #1e293b', borderRadius: 5, padding: '8px 12px', color: '#e2e8f0', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+        </div>
+        <button type="submit" disabled={loading} style={{ background: loading ? '#4a1c1c' : '#dc2626', color: '#fff', border: 'none', borderRadius: 5, padding: '8px 20px', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', fontWeight: 700 }}>
+          {loading ? '⟳ Envoi...' : '📧 Envoyer l\'email de preuve'}
+        </button>
+      </form>
+      {result?.ok && <div style={{ color: '#60d394', fontSize: 12, marginTop: 10 }}>✓ {result.message}</div>}
+      {result?.error && (
+        <div style={{ color: '#ff6b35', fontSize: 12, marginTop: 10 }}>
+          {result.error}
+          {(result as any).setup && (
+            <div style={{ color: '#64748b', marginTop: 6 }}>
+              → Configure <code style={{ color: '#60a5fa' }}>RESEND_API_KEY</code> et <code style={{ color: '#60a5fa' }}>RESEND_FROM_EMAIL</code> dans les secrets Replit
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CheckRow({ c }: { c: PhishingCheck }) {
   const [open, setOpen] = useState(false);
   return (
@@ -374,6 +429,8 @@ export default function App() {
                             {selected.summary}
                           </div>
                         )}
+                        <DemoEmailPanel assessmentId={selected.id} domain={selected.domain} />
+
                         {/* Group by category */}
                         {(['email', 'http', 'dns'] as const).map(cat => {
                           const catChecks = selected.checks.filter(c => c.category === cat);
