@@ -6,6 +6,7 @@ import fuzzRouter from './routes/fuzz';
 import loadTestRouter from './routes/load-test';
 import phishingRouter from './routes/phishing';
 import demoEmailRouter from './routes/demo-email';
+import fintechFraudRouter from './routes/fintech-fraud';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000');
@@ -28,6 +29,7 @@ app.use('/api/fuzz', fuzzRouter);
 app.use('/api/load-test', loadTestRouter);
 app.use('/api/phishing', phishingRouter);
 app.use('/api/demo-email', demoEmailRouter);
+app.use('/api/fintech-fraud', fintechFraudRouter);
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`INTEL API running on port ${PORT}`);

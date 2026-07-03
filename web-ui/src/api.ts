@@ -78,6 +78,29 @@ export interface FuzzResult {
   ms: number;
 }
 
+export interface FraudCheck {
+  id: string;
+  name: string;
+  category: 'auth' | 'csrf' | 'cors' | 'ratelimit' | 'headers' | 'exposure';
+  passed: boolean;
+  risk: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  detail: string;
+  fix: string;
+}
+
+export interface FintechFraudAudit {
+  id: string;
+  target_url: string;
+  domain: string;
+  status: 'running' | 'completed' | 'failed';
+  risk_score: number;
+  risk_level: 'CRITIQUE' | 'ÉLEVÉ' | 'MOYEN' | 'FAIBLE' | 'UNKNOWN';
+  checks: FraudCheck[];
+  summary?: string;
+  created_at: string;
+  completed_at?: string;
+}
+
 export const api = {
   async getScans(): Promise<Scan[]> {
     const r = await fetch(`${BASE}/scans`);
@@ -129,6 +152,18 @@ export const api = {
   },
   async startPhishing(target_url: string): Promise<PhishingAssessment> {
     const r = await fetch(`${BASE}/phishing`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_url }),
+    });
+    return r.json();
+  },
+  async getFintechFraudAudits(): Promise<FintechFraudAudit[]> {
+    const r = await fetch(`${BASE}/fintech-fraud`);
+    return r.json();
+  },
+  async startFintechFraud(target_url: string): Promise<FintechFraudAudit> {
+    const r = await fetch(`${BASE}/fintech-fraud`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ target_url }),
