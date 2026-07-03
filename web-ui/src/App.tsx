@@ -41,11 +41,26 @@ function ScoreRing({ score, level }: { score: number; level: string }) {
   );
 }
 
+const inputStyle: React.CSSProperties = {
+  width: '100%', background: '#0d1424', border: '1px solid #1e293b',
+  borderRadius: 5, padding: '8px 12px', color: '#e2e8f0',
+  fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+};
+const labelStyle: React.CSSProperties = {
+  display: 'block', color: '#64748b', fontSize: 11,
+  marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5,
+};
+
 function DemoEmailPanel({ assessmentId, domain }: { assessmentId: string; domain: string }) {
   const [to, setTo] = useState('');
   const [name, setName] = useState(`Support ${domain}`);
+  const [message, setMessage] = useState(
+    `Nous avons détecté une connexion suspecte sur votre compte depuis un appareil non reconnu. Par mesure de sécurité, votre accès a été temporairement restreint.\n\nVous devez vérifier votre identité dans les 24 heures pour éviter la suspension de votre compte.`
+  );
+  const [btnText, setBtnText] = useState('🔐 Vérifier mon identité');
+  const [btnUrl, setBtnUrl] = useState('https://');
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{ ok?: boolean; error?: string; message?: string } | null>(null);
+  const [result, setResult] = useState<{ ok?: boolean; error?: string; message?: string; setup?: boolean } | null>(null);
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
@@ -54,7 +69,14 @@ function DemoEmailPanel({ assessmentId, domain }: { assessmentId: string; domain
       const r = await fetch('/api/demo-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assessment_id: assessmentId, to_email: to, spoof_name: name }),
+        body: JSON.stringify({
+          assessment_id: assessmentId,
+          to_email: to,
+          spoof_name: name,
+          custom_message: message,
+          button_text: btnText,
+          button_url: btnUrl,
+        }),
       });
       setResult(await r.json());
     } catch { setResult({ error: 'Erreur réseau' }); }
@@ -62,32 +84,56 @@ function DemoEmailPanel({ assessmentId, domain }: { assessmentId: string; domain
   }
 
   return (
-    <div style={{ background: '#0a0e1a', border: '1px solid #dc262640', borderRadius: 8, padding: '16px 18px', marginTop: 20 }}>
-      <div style={{ color: '#fbbf24', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
+    <div style={{ background: '#0a0e1a', border: '1px solid #dc262640', borderRadius: 8, padding: '18px 20px', marginTop: 20 }}>
+      <div style={{ color: '#fbbf24', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16 }}>
         🎭 Envoyer l'email de preuve au client
       </div>
       <form onSubmit={send}>
+        {/* Row 1: To + From name */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+          <div>
+            <label style={labelStyle}>Email du client (destinataire)</label>
+            <input value={to} onChange={e => setTo(e.target.value)} required type="email"
+              placeholder="client@gmail.com" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Nom expéditeur affiché</label>
+            <input value={name} onChange={e => setName(e.target.value)} required style={inputStyle} />
+          </div>
+        </div>
+
+        {/* Message */}
         <div style={{ marginBottom: 10 }}>
-          <label style={{ display: 'block', color: '#64748b', fontSize: 11, marginBottom: 4, textTransform: 'uppercase' }}>Email du client (destinataire)</label>
-          <input value={to} onChange={e => setTo(e.target.value)} required type="email" placeholder="client@sondomaine.com"
-            style={{ width: '100%', background: '#0d1424', border: '1px solid #1e293b', borderRadius: 5, padding: '8px 12px', color: '#e2e8f0', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+          <label style={labelStyle}>Corps du message</label>
+          <textarea value={message} onChange={e => setMessage(e.target.value)} rows={4}
+            style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }} />
         </div>
-        <div style={{ marginBottom: 14 }}>
-          <label style={{ display: 'block', color: '#64748b', fontSize: 11, marginBottom: 4, textTransform: 'uppercase' }}>Nom affiché (expéditeur usurpé)</label>
-          <input value={name} onChange={e => setName(e.target.value)} required
-            style={{ width: '100%', background: '#0d1424', border: '1px solid #1e293b', borderRadius: 5, padding: '8px 12px', color: '#e2e8f0', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+
+        {/* Button */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10, marginBottom: 16 }}>
+          <div>
+            <label style={labelStyle}>Texte du bouton</label>
+            <input value={btnText} onChange={e => setBtnText(e.target.value)} style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Lien du bouton</label>
+            <input value={btnUrl} onChange={e => setBtnUrl(e.target.value)} placeholder="https://..." style={inputStyle} />
+          </div>
         </div>
-        <button type="submit" disabled={loading} style={{ background: loading ? '#4a1c1c' : '#dc2626', color: '#fff', border: 'none', borderRadius: 5, padding: '8px 20px', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', fontWeight: 700 }}>
-          {loading ? '⟳ Envoi...' : '📧 Envoyer l\'email de preuve'}
+
+        <button type="submit" disabled={loading}
+          style={{ background: loading ? '#4a1c1c' : '#dc2626', color: '#fff', border: 'none', borderRadius: 5, padding: '9px 24px', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', fontWeight: 700 }}>
+          {loading ? '⟳ Envoi en cours...' : '📧 Envoyer l\'email'}
         </button>
       </form>
+
       {result?.ok && <div style={{ color: '#60d394', fontSize: 12, marginTop: 10 }}>✓ {result.message}</div>}
       {result?.error && (
         <div style={{ color: '#ff6b35', fontSize: 12, marginTop: 10 }}>
-          {result.error}
-          {(result as any).setup && (
+          ✗ {result.error}
+          {result.setup && (
             <div style={{ color: '#64748b', marginTop: 6 }}>
-              → Configure <code style={{ color: '#60a5fa' }}>RESEND_API_KEY</code> et <code style={{ color: '#60a5fa' }}>RESEND_FROM_EMAIL</code> dans les secrets Replit
+              → Configure <code style={{ color: '#60a5fa' }}>SMTP_HOST</code>, <code style={{ color: '#60a5fa' }}>SMTP_USER</code>, <code style={{ color: '#60a5fa' }}>SMTP_PASS</code> dans les secrets Replit
             </div>
           )}
         </div>
