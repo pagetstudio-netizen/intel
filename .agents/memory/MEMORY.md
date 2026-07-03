@@ -1,0 +1,1 @@
+- [Rust binary not portable to Plesk](rust-binary-plesk-deploy.md) — security-core's compiled binary is Nix-linked and must be rebuilt on the target server, not committed to git.

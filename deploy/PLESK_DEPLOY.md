@@ -1,8 +1,16 @@
-# Déploiement INTEL sur Plesk
+# Déploiement INTEL sur Plesk (scénario alternatif : Nginx statique + PM2)
+
+> ⚠️ **Ce n'est pas le scénario recommandé.** Le guide principal et à jour est
+> [`plesk-setup.md`](./plesk-setup.md) : il utilise le mode Node.js natif de Plesk (Passenger via
+> `server.js`), sans PM2, ce qui évite les soucis de permissions liés au chroot Plesk. Ne suis ce
+> document que si tu préfères gérer toi-même Nginx + PM2 en dehors de l'intégration Node.js de
+> Plesk.
 
 ## Prérequis
 - Node.js 18+ installé sur le serveur Plesk
 - PostgreSQL 14+ disponible
+- Rust installé (`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`) — requis pour
+  compiler `security-core` (scan / fuzz / load-test)
 - PM2 installé globalement : `npm install -g pm2 tsx`
 - Accès SSH au serveur
 
