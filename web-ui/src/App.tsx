@@ -1422,32 +1422,61 @@ function OsintTab({ osintDomain, setOsintDomain, handleOsint, osintLoading, acti
   setActiveOsint: (s: OsintScan | null) => void;
 }) {
   const SOURCE_ICON: Record<string, string> = {
-    dns_mx: '📬', dns_spf: '🛡️', dns_dmarc: '📋', dns_caa: '🔒', subdomain: '🌐',
-    header_server: '🖥️', header_powered: '⚙️', email_web: '📧', email_dmarc_rua: '📧',
-    email_dmarc_ruf: '📧', email_security_txt: '📧', robots: '🤖', security_txt: '🔐',
+    dns_mx: '📬', dns_spf: '🛡️', dns_dmarc: '📋', dns_caa: '🔒', dns_caa_missing: '⚠️',
+    dns_soa: '🗂️', dns_ns_cloud: '☁️', subdomain: '🌐', takeover_risk: '🚨',
+    header_server: '🖥️', header_powered: '⚙️', header_via: '🔀',
+    email_web: '📧', email_dmarc_rua: '📧', email_dmarc_ruf: '📧', email_security_txt: '📧', email_soa: '📧',
+    robots: '🤖', security_txt: '🔐', zone_transfer: '🚨', zone_transfer_blocked: '✅',
+    crt_sh: '📜', cloud: '☁️', mail_provider: '📬', dkim_selector: '🔑',
+    google_verify: '🔍', ms_verify: '🏢', atlassian: '🔧', stripe: '💳', docusign: '📝',
+    spf_includes: '📤',
   };
 
   const display = activeOsint ?? osintScans[0] ?? null;
+  const dns = display?.dns_records ?? {};
+  const zt = dns.zone_transfer as { possible: boolean; message: string } | undefined;
+  const takeoverRisks = (dns.takeover_risks ?? []) as { subdomain: string; cname: string; service: string; risk: boolean; reason: string }[];
+  const clouds = (dns.cloud_providers ?? []) as string[];
+  const crtSubs = (dns.crt_subdomains ?? []) as string[];
+
+  // Resolved subdomains (DNS brute) vs crt.sh-only
+  const resolvedSubs = display?.subdomains?.filter(s => !crtSubs.includes(s) || display.sources.some(src => src.type === 'subdomain' && src.value === s)) ?? [];
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: display ? '360px 1fr' : '1fr', gap: 24 }}>
+    <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: display ? '340px 1fr' : '1fr', gap: 24 }}>
+
         {/* Left: form + history */}
         <div>
           <h2 style={{ color: '#e2e8f0', fontSize: 16, fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ color: '#60a5fa' }}>🔎</span> OSINT — Reconnaissance passive
+            <span style={{ color: '#60a5fa' }}>🔎</span> OSINT — Reconnaissance passive enrichie
           </h2>
-          <p style={{ color: '#475569', fontSize: 12, marginBottom: 18 }}>
-            Découverte d'emails exposés, sous-domaines, enregistrements DNS, fichiers robots.txt et security.txt — sans authentification.
+          <p style={{ color: '#475569', fontSize: 12, marginBottom: 16, lineHeight: 1.6 }}>
+            DNS complet (A, AAAA, MX, NS, TXT, CNAME, SOA, CAA, DKIM), zone transfer, Certificate Transparency (crt.sh), détection cloud, risques de subdomain takeover.
           </p>
 
-          <form onSubmit={handleOsint} style={{ marginBottom: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 16 }}>
+            {[
+              ['📜', 'crt.sh', 'Tous les sous-domaines SSL historiques'],
+              ['🚨', 'Zone transfer', 'Tentative AXFR sur les nameservers'],
+              ['☁️', 'Détection cloud', 'AWS, GCP, Azure, Cloudflare…'],
+              ['🔓', 'Subdomain takeover', 'CNAME pointant vers service non revendiqué'],
+            ].map(([icon, title, desc]) => (
+              <div key={String(title)} style={{ background: '#0d1424', border: '1px solid #1e293b', borderRadius: 8, padding: '8px 10px' }}>
+                <div style={{ fontSize: 14, marginBottom: 2 }}>{icon}</div>
+                <div style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700, marginBottom: 1 }}>{title}</div>
+                <div style={{ color: '#334155', fontSize: 10 }}>{desc}</div>
+              </div>
+            ))}
+          </div>
+
+          <form onSubmit={handleOsint} style={{ marginBottom: 20 }}>
             <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
               Domaine cible *
             </label>
             <div style={{ display: 'flex', gap: 8 }}>
               <input value={osintDomain} onChange={e => setOsintDomain(e.target.value)} required
-                placeholder="exemple.com ou https://exemple.com"
+                placeholder="sendavapay.com"
                 style={{ flex: 1, background: '#0a0e1a', border: '1px solid #1e293b', borderRadius: 6, padding: '10px 14px', color: '#e2e8f0', fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
               <button type="submit" disabled={osintLoading}
                 style={{ padding: '10px 18px', background: osintLoading ? '#1e293b' : '#1d4ed8', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: osintLoading ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
@@ -1471,7 +1500,7 @@ function OsintTab({ osintDomain, setOsintDomain, handleOsint, osintLoading, acti
                   </div>
                   {s.status === 'completed' && (
                     <div style={{ color: '#475569', fontSize: 11, marginTop: 3 }}>
-                      {s.subdomains.length} sous-domaine(s) · {s.sources.length} source(s)
+                      {s.subdomains.length} sous-domaine(s) · {s.emails_found.length} email(s)
                     </div>
                   )}
                 </div>
@@ -1482,80 +1511,91 @@ function OsintTab({ osintDomain, setOsintDomain, handleOsint, osintLoading, acti
 
         {/* Right: results */}
         {display && (
-          <div style={{ background: '#0d1424', border: '1px solid #1e293b', borderRadius: 12, padding: 24 }}>
+          <div style={{ background: '#0d1424', border: '1px solid #1e293b', borderRadius: 12, padding: 24, overflowY: 'auto', maxHeight: '85vh' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <div>
                 <div style={{ color: '#e2e8f0', fontWeight: 800, fontSize: 17 }}>{display.domain}</div>
                 <div style={{ color: '#475569', fontSize: 12 }}>
-                  {display.status === 'running' ? '⟳ Analyse en cours...' : display.status === 'completed' ? `Terminé — ${new Date(display.completed_at!).toLocaleString('fr-FR')}` : '✗ Échec'}
+                  {display.status === 'running' ? '⟳ Analyse en cours (DNS + crt.sh + AXFR)...' : display.status === 'completed' ? `Terminé — ${new Date(display.completed_at!).toLocaleString('fr-FR')}` : '✗ Échec'}
                 </div>
               </div>
-              {display.status === 'running' && (
-                <div style={{ color: '#60a5fa', fontSize: 12 }}>⟳ Scanning...</div>
-              )}
             </div>
+
+            {display.status === 'running' && (
+              <div style={{ color: '#60a5fa', fontSize: 13, textAlign: 'center', padding: '40px 0' }}>⟳ Reconnaissance en cours — DNS, zone transfer, crt.sh...</div>
+            )}
 
             {display.status === 'completed' && (
               <>
+                {/* ── Zone Transfer Alert ── */}
+                {zt && zt.possible && (
+                  <div style={{ background: '#ff3b5c15', border: '1px solid #ff3b5c', borderRadius: 8, padding: '12px 16px', marginBottom: 20 }}>
+                    <div style={{ color: '#ff3b5c', fontWeight: 800, fontSize: 13, marginBottom: 4 }}>🚨 ZONE TRANSFER AUTORISÉ — Critique</div>
+                    <div style={{ color: '#fca5a5', fontSize: 12 }}>{zt.message}</div>
+                    <div style={{ color: '#475569', fontSize: 11, marginTop: 6 }}>Tous les enregistrements DNS internes sont exposés publiquement. Bloquer AXFR sur les nameservers immédiatement.</div>
+                  </div>
+                )}
+
+                {/* ── Subdomain Takeover Alerts ── */}
+                {takeoverRisks.filter(r => r.risk).map((r, i) => (
+                  <div key={i} style={{ background: '#ff6b3515', border: '1px solid #ff6b35', borderRadius: 8, padding: '12px 16px', marginBottom: 12 }}>
+                    <div style={{ color: '#ff6b35', fontWeight: 800, fontSize: 13, marginBottom: 4 }}>⚠️ SUBDOMAIN TAKEOVER — {r.subdomain}</div>
+                    <div style={{ color: '#fdba74', fontSize: 12 }}>{r.reason}</div>
+                  </div>
+                ))}
+
                 {/* Stats row */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 20 }}>
                   {[
-                    { label: 'Emails exposés', val: display.emails_found.length, color: display.emails_found.length > 0 ? '#ff6b35' : '#60d394', icon: '📧' },
-                    { label: 'Sous-domaines', val: display.subdomains.length, color: '#60a5fa', icon: '🌐' },
-                    { label: 'Sources OSINT', val: display.sources.length, color: '#94a3b8', icon: '🔎' },
+                    { label: 'Emails', val: display.emails_found.length, color: display.emails_found.length > 0 ? '#ff6b35' : '#60d394', icon: '📧' },
+                    { label: 'Sous-domaines (DNS)', val: resolvedSubs.length, color: '#60a5fa', icon: '🌐' },
+                    { label: 'crt.sh historique', val: crtSubs.length, color: '#a78bfa', icon: '📜' },
+                    { label: 'Cloud détecté', val: clouds.length, color: clouds.length > 0 ? '#fbbf24' : '#475569', icon: '☁️' },
                   ].map(s => (
-                    <div key={s.label} style={{ background: '#0a0e1a', borderRadius: 8, padding: '12px 14px', textAlign: 'center', border: '1px solid #1e293b' }}>
-                      <div style={{ fontSize: 20, marginBottom: 4 }}>{s.icon}</div>
-                      <div style={{ color: s.color, fontSize: 22, fontWeight: 800 }}>{s.val}</div>
-                      <div style={{ color: '#475569', fontSize: 11 }}>{s.label}</div>
+                    <div key={s.label} style={{ background: '#0a0e1a', borderRadius: 8, padding: '10px 12px', textAlign: 'center', border: '1px solid #1e293b' }}>
+                      <div style={{ fontSize: 18, marginBottom: 2 }}>{s.icon}</div>
+                      <div style={{ color: s.color, fontSize: 20, fontWeight: 800 }}>{s.val}</div>
+                      <div style={{ color: '#475569', fontSize: 10 }}>{s.label}</div>
                     </div>
                   ))}
                 </div>
 
-                {/* Emails found */}
+                {/* ── Cloud providers ── */}
+                {clouds.length > 0 && (
+                  <div style={{ marginBottom: 18 }}>
+                    <div style={{ color: '#fbbf24', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>☁️ Infrastructure Cloud détectée</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {clouds.map((c, i) => (
+                        <span key={i} style={{ background: '#fbbf2420', border: '1px solid #fbbf2440', borderRadius: 6, padding: '4px 12px', fontSize: 12, color: '#fbbf24', fontWeight: 600 }}>{c}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Emails found ── */}
                 {display.emails_found.length > 0 && (
-                  <div style={{ marginBottom: 20 }}>
-                    <div style={{ color: '#ff6b35', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+                  <div style={{ marginBottom: 18 }}>
+                    <div style={{ color: '#ff6b35', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
                       📧 Emails exposés publiquement ({display.emails_found.length})
                     </div>
                     <div style={{ background: '#0a0e1a', borderRadius: 8, padding: '12px 16px', border: '1px solid #ff6b3530' }}>
                       {display.emails_found.map((e, i) => (
-                        <div key={i} style={{ color: '#fbbf24', fontSize: 13, fontFamily: 'monospace', padding: '4px 0', borderBottom: i < display.emails_found.length - 1 ? '1px solid #1e293b' : 'none' }}>
-                          {e}
-                        </div>
+                        <div key={i} style={{ color: '#fbbf24', fontSize: 13, fontFamily: 'monospace', padding: '4px 0', borderBottom: i < display.emails_found.length - 1 ? '1px solid #1e293b20' : 'none' }}>{e}</div>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Subdomains */}
-                {display.subdomains.length > 0 && (
-                  <div style={{ marginBottom: 20 }}>
-                    <div style={{ color: '#60a5fa', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-                      🌐 Sous-domaines actifs ({display.subdomains.length})
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {display.subdomains.map((s, i) => (
-                        <span key={i} style={{ background: '#1d4ed820', border: '1px solid #1d4ed840', borderRadius: 6, padding: '4px 10px', fontSize: 12, color: '#60a5fa', fontFamily: 'monospace' }}>
-                          {s}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* DNS Records */}
-                {Object.keys(display.dns_records).length > 0 && (
-                  <div style={{ marginBottom: 20 }}>
-                    <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-                      🔗 Enregistrements DNS
-                    </div>
-                    <div style={{ background: '#0a0e1a', borderRadius: 8, padding: '12px 16px', border: '1px solid #1e293b' }}>
-                      {Object.entries(display.dns_records).map(([k, v]) => (
-                        <div key={k} style={{ display: 'flex', gap: 12, padding: '4px 0', borderBottom: '1px solid #1e293b10', fontSize: 12 }}>
-                          <span style={{ color: '#475569', width: 40, textTransform: 'uppercase', fontWeight: 700 }}>{k}</span>
-                          <span style={{ color: '#94a3b8', fontFamily: 'monospace', flex: 1 }}>
-                            {Array.isArray(v) ? v.join(', ') : JSON.stringify(v)}
+                {/* ── DNS Records (structured) ── */}
+                {Object.keys(dns).length > 0 && (
+                  <div style={{ marginBottom: 18 }}>
+                    <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>🔗 Enregistrements DNS</div>
+                    <div style={{ background: '#0a0e1a', borderRadius: 8, border: '1px solid #1e293b', overflow: 'hidden' }}>
+                      {(['a', 'aaaa', 'cname', 'ns', 'mx', 'soa', 'caa', 'txt', 'dkim_selectors'] as const).filter(k => dns[k]).map((k, i, arr) => (
+                        <div key={k} style={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: 12, padding: '8px 14px', borderBottom: i < arr.length - 1 ? '1px solid #1e293b20' : 'none' }}>
+                          <span style={{ color: '#475569', textTransform: 'uppercase', fontWeight: 700, fontSize: 11, paddingTop: 1 }}>{k}</span>
+                          <span style={{ color: '#94a3b8', fontFamily: 'monospace', fontSize: 12, wordBreak: 'break-all' }}>
+                            {Array.isArray(dns[k]) ? (dns[k] as string[]).join('\n') : typeof dns[k] === 'object' ? JSON.stringify(dns[k]) : String(dns[k])}
                           </span>
                         </div>
                       ))}
@@ -1563,21 +1603,69 @@ function OsintTab({ osintDomain, setOsintDomain, handleOsint, osintLoading, acti
                   </div>
                 )}
 
-                {/* All sources */}
+                {/* ── Zone transfer result (blocked) ── */}
+                {zt && !zt.possible && (
+                  <div style={{ marginBottom: 18, background: '#0a0e1a', border: '1px solid #60d39430', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#60d394' }}>
+                    ✅ {zt.message}
+                  </div>
+                )}
+
+                {/* ── Resolved subdomains ── */}
+                {resolvedSubs.length > 0 && (
+                  <div style={{ marginBottom: 18 }}>
+                    <div style={{ color: '#60a5fa', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+                      🌐 Sous-domaines actifs — DNS ({resolvedSubs.length})
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                      {resolvedSubs.map((s, i) => {
+                        const tr = takeoverRisks.find(r => r.subdomain === s);
+                        return (
+                          <span key={i} style={{ background: tr?.risk ? '#ff3b5c20' : '#1d4ed820', border: `1px solid ${tr?.risk ? '#ff3b5c50' : '#1d4ed840'}`, borderRadius: 6, padding: '4px 10px', fontSize: 11, color: tr?.risk ? '#fca5a5' : '#60a5fa', fontFamily: 'monospace' }}>
+                            {tr?.risk ? '⚠️ ' : ''}{s}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── crt.sh subdomains ── */}
+                {crtSubs.length > 0 && (
+                  <div style={{ marginBottom: 18 }}>
+                    <div style={{ color: '#a78bfa', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+                      📜 Historique SSL via crt.sh ({crtSubs.length} sous-domaines)
+                    </div>
+                    <div style={{ background: '#0a0e1a', borderRadius: 8, border: '1px solid #a78bfa30', padding: '10px 14px', maxHeight: 150, overflowY: 'auto' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                        {crtSubs.map((s, i) => (
+                          <span key={i} style={{ background: '#a78bfa15', border: '1px solid #a78bfa30', borderRadius: 5, padding: '3px 8px', fontSize: 11, color: '#c4b5fd', fontFamily: 'monospace' }}>{s}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ color: '#334155', fontSize: 11, marginTop: 5 }}>Tous les sous-domaines ayant eu un certificat SSL — incluant anciens environnements, staging, etc.</div>
+                  </div>
+                )}
+
+                {/* ── All sources ── */}
                 <div>
-                  <div style={{ color: '#64748b', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+                  <div style={{ color: '#64748b', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
                     🔎 Toutes les sources ({display.sources.length})
                   </div>
-                  <div style={{ maxHeight: 300, overflowY: 'auto' }}>
-                    {display.sources.map((s, i) => (
-                      <div key={i} style={{ display: 'flex', gap: 10, padding: '7px 10px', marginBottom: 4, background: '#0a0e1a', borderRadius: 6, fontSize: 12, borderLeft: `3px solid ${s.type.includes('email') ? '#ff6b35' : s.type === 'subdomain' ? '#60a5fa' : '#1e293b'}` }}>
-                        <span style={{ fontSize: 14, width: 20 }}>{SOURCE_ICON[s.type] ?? '•'}</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ color: '#e2e8f0', fontWeight: 600 }}>{s.value}</div>
-                          <div style={{ color: '#475569', fontSize: 11, marginTop: 1 }}>{s.detail}</div>
+                  <div style={{ maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {display.sources.map((s, i) => {
+                      const isCrit = s.type === 'zone_transfer' || s.type === 'takeover_risk';
+                      const isEmail = s.type.includes('email');
+                      const borderColor = isCrit ? '#ff3b5c' : isEmail ? '#ff6b35' : s.type === 'subdomain' ? '#60a5fa' : s.type === 'cloud' ? '#fbbf24' : '#1e293b';
+                      return (
+                        <div key={i} style={{ display: 'flex', gap: 10, padding: '7px 10px', background: isCrit ? '#ff3b5c08' : '#0a0e1a', borderRadius: 6, fontSize: 12, borderLeft: `3px solid ${borderColor}` }}>
+                          <span style={{ fontSize: 13, width: 20, flexShrink: 0 }}>{SOURCE_ICON[s.type] ?? '•'}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ color: isCrit ? '#fca5a5' : '#e2e8f0', fontWeight: 600 }}>{s.value}</div>
+                            <div style={{ color: '#475569', fontSize: 11, marginTop: 1 }}>{s.detail}</div>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </>
