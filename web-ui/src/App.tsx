@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { api, Scan, FuzzJob, LoadTest, PhishingAssessment, PhishingCheck, FintechFraudAudit, FraudCheck, Mandate } from './api';
+import { api, Scan, FuzzJob, LoadTest, PhishingAssessment, PhishingCheck, FintechFraudAudit, FraudCheck, Mandate, OsintScan } from './api';
 import './app.css';
 
-type Tab = 'phishing' | 'fraud' | 'loadtest' | 'scanner' | 'fuzzer' | 'history' | 'mandats';
+type Tab = 'phishing' | 'fraud' | 'loadtest' | 'scanner' | 'fuzzer' | 'history' | 'mandats' | 'osint';
 
 const SEV_COLOR: Record<string, string> = {
   CRITICAL: '#ff3b5c', HIGH: '#ff6b35', MEDIUM: '#fbbf24', LOW: '#60d394', INFO: '#60a5fa',
@@ -361,6 +361,12 @@ function AppInner() {
   const [fraudTarget, setFraudTarget] = useState('https://');
   const [fraudLoading, setFraudLoading] = useState(false);
 
+  // OSINT state
+  const [osintScans, setOsintScans] = useState<OsintScan[]>([]);
+  const [osintDomain, setOsintDomain] = useState('');
+  const [osintLoading, setOsintLoading] = useState(false);
+  const [activeOsint, setActiveOsint] = useState<OsintScan | null>(null);
+
   // Mandats state
   const [mandates, setMandates] = useState<Mandate[]>([]);
   const [mTesterCompany, setMTesterCompany] = useState('');
@@ -385,12 +391,16 @@ function AppInner() {
   ];
 
   const refresh = useCallback(async () => {
-    const [s, f, l, p, fa, m] = await Promise.all([
+    const [s, f, l, p, fa, m, os] = await Promise.all([
       api.getScans(), api.getFuzzJobs(), api.getLoadTests(),
       api.getPhishingAssessments(), api.getFintechFraudAudits(),
-      api.getMandates(),
+      api.getMandates(), api.getOsintScans(),
     ]);
-    setScans(s); setFuzzes(f); setLoadTests(l); setPhishings(p); setFraudAudits(fa); setMandates(m);
+    setScans(s); setFuzzes(f); setLoadTests(l); setPhishings(p); setFraudAudits(fa); setMandates(m); setOsintScans(os);
+    if (activeOsint) {
+      const fresh = os.find(x => x.id === activeOsint.id);
+      if (fresh) setActiveOsint(fresh);
+    }
     if (selected) {
       const fresh = [...s, ...f, ...l, ...p, ...fa].find(x => x.id === selected.id);
       if (fresh) setSelected(fresh);
@@ -399,7 +409,7 @@ function AppInner() {
       const fresh = f.find(x => x.id === activeFuzz.id);
       if (fresh) setActiveFuzz(fresh);
     }
-  }, [selected, activeFuzz]);
+  }, [selected, activeFuzz, activeOsint]);
 
   useEffect(() => { refresh(); const t = setInterval(refresh, 3000); return () => clearInterval(t); }, [refresh]);
 
@@ -425,6 +435,10 @@ function AppInner() {
   async function handleFraud(e: React.FormEvent) {
     e.preventDefault(); setFraudLoading(true);
     try { const r = await api.startFintechFraud(fraudTarget); setSelected(r); await refresh(); setTab('history'); } finally { setFraudLoading(false); }
+  }
+  async function handleOsint(e: React.FormEvent) {
+    e.preventDefault(); setOsintLoading(true); setActiveOsint(null);
+    try { const r = await api.startOsint(osintDomain); setActiveOsint(r); } finally { setOsintLoading(false); }
   }
 
   async function handleCreateMandate(e: React.FormEvent) {
@@ -478,6 +492,7 @@ function AppInner() {
     ['fuzzer', '🕸 Fuzzer'],
     ['history', '📋 History'],
     ['mandats', '✍️ Mandats'],
+    ['osint', '🔎 OSINT'],
   ];
 
   return (
@@ -1108,7 +1123,191 @@ function AppInner() {
             </div>
           </div>
         )}
+
+        {/* ===== OSINT TAB ===== */}
+        {tab === 'osint' && (
+          <OsintTab
+            osintDomain={osintDomain} setOsintDomain={setOsintDomain}
+            handleOsint={handleOsint} osintLoading={osintLoading}
+            activeOsint={activeOsint} osintScans={osintScans}
+            setActiveOsint={setActiveOsint}
+          />
+        )}
       </main>
+    </div>
+  );
+}
+
+function OsintTab({ osintDomain, setOsintDomain, handleOsint, osintLoading, activeOsint, osintScans, setActiveOsint }: {
+  osintDomain: string; setOsintDomain: (v: string) => void;
+  handleOsint: (e: React.FormEvent) => void; osintLoading: boolean;
+  activeOsint: OsintScan | null; osintScans: OsintScan[];
+  setActiveOsint: (s: OsintScan | null) => void;
+}) {
+  const SOURCE_ICON: Record<string, string> = {
+    dns_mx: '📬', dns_spf: '🛡️', dns_dmarc: '📋', dns_caa: '🔒', subdomain: '🌐',
+    header_server: '🖥️', header_powered: '⚙️', email_web: '📧', email_dmarc_rua: '📧',
+    email_dmarc_ruf: '📧', email_security_txt: '📧', robots: '🤖', security_txt: '🔐',
+  };
+
+  const display = activeOsint ?? osintScans[0] ?? null;
+
+  return (
+    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: display ? '360px 1fr' : '1fr', gap: 24 }}>
+        {/* Left: form + history */}
+        <div>
+          <h2 style={{ color: '#e2e8f0', fontSize: 16, fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ color: '#60a5fa' }}>🔎</span> OSINT — Reconnaissance passive
+          </h2>
+          <p style={{ color: '#475569', fontSize: 12, marginBottom: 18 }}>
+            Découverte d'emails exposés, sous-domaines, enregistrements DNS, fichiers robots.txt et security.txt — sans authentification.
+          </p>
+
+          <form onSubmit={handleOsint} style={{ marginBottom: 24 }}>
+            <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+              Domaine cible *
+            </label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input value={osintDomain} onChange={e => setOsintDomain(e.target.value)} required
+                placeholder="exemple.com ou https://exemple.com"
+                style={{ flex: 1, background: '#0a0e1a', border: '1px solid #1e293b', borderRadius: 6, padding: '10px 14px', color: '#e2e8f0', fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+              <button type="submit" disabled={osintLoading}
+                style={{ padding: '10px 18px', background: osintLoading ? '#1e293b' : '#1d4ed8', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: osintLoading ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
+                {osintLoading ? '⟳' : '🔎 Scanner'}
+              </button>
+            </div>
+          </form>
+
+          {/* History list */}
+          {osintScans.length > 0 && (
+            <div>
+              <div style={{ color: '#475569', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Historique</div>
+              {osintScans.map(s => (
+                <div key={s.id} onClick={() => setActiveOsint(s)}
+                  style={{ background: '#0d1424', border: `1px solid ${display?.id === s.id ? '#1d4ed8' : '#1e293b'}`, borderRadius: 8, padding: '10px 14px', marginBottom: 6, cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: '#e2e8f0', fontWeight: 600, fontSize: 13 }}>{s.domain}</span>
+                    <span style={{ color: s.status === 'completed' ? '#60d394' : s.status === 'running' ? '#60a5fa' : '#ff3b5c', fontSize: 11, fontWeight: 700 }}>
+                      {s.status === 'running' ? '⟳ En cours' : s.status === 'completed' ? `✓ ${s.emails_found.length} email(s)` : '✗ Erreur'}
+                    </span>
+                  </div>
+                  {s.status === 'completed' && (
+                    <div style={{ color: '#475569', fontSize: 11, marginTop: 3 }}>
+                      {s.subdomains.length} sous-domaine(s) · {s.sources.length} source(s)
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Right: results */}
+        {display && (
+          <div style={{ background: '#0d1424', border: '1px solid #1e293b', borderRadius: 12, padding: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <div>
+                <div style={{ color: '#e2e8f0', fontWeight: 800, fontSize: 17 }}>{display.domain}</div>
+                <div style={{ color: '#475569', fontSize: 12 }}>
+                  {display.status === 'running' ? '⟳ Analyse en cours...' : display.status === 'completed' ? `Terminé — ${new Date(display.completed_at!).toLocaleString('fr-FR')}` : '✗ Échec'}
+                </div>
+              </div>
+              {display.status === 'running' && (
+                <div style={{ color: '#60a5fa', fontSize: 12 }}>⟳ Scanning...</div>
+              )}
+            </div>
+
+            {display.status === 'completed' && (
+              <>
+                {/* Stats row */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+                  {[
+                    { label: 'Emails exposés', val: display.emails_found.length, color: display.emails_found.length > 0 ? '#ff6b35' : '#60d394', icon: '📧' },
+                    { label: 'Sous-domaines', val: display.subdomains.length, color: '#60a5fa', icon: '🌐' },
+                    { label: 'Sources OSINT', val: display.sources.length, color: '#94a3b8', icon: '🔎' },
+                  ].map(s => (
+                    <div key={s.label} style={{ background: '#0a0e1a', borderRadius: 8, padding: '12px 14px', textAlign: 'center', border: '1px solid #1e293b' }}>
+                      <div style={{ fontSize: 20, marginBottom: 4 }}>{s.icon}</div>
+                      <div style={{ color: s.color, fontSize: 22, fontWeight: 800 }}>{s.val}</div>
+                      <div style={{ color: '#475569', fontSize: 11 }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Emails found */}
+                {display.emails_found.length > 0 && (
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ color: '#ff6b35', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+                      📧 Emails exposés publiquement ({display.emails_found.length})
+                    </div>
+                    <div style={{ background: '#0a0e1a', borderRadius: 8, padding: '12px 16px', border: '1px solid #ff6b3530' }}>
+                      {display.emails_found.map((e, i) => (
+                        <div key={i} style={{ color: '#fbbf24', fontSize: 13, fontFamily: 'monospace', padding: '4px 0', borderBottom: i < display.emails_found.length - 1 ? '1px solid #1e293b' : 'none' }}>
+                          {e}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Subdomains */}
+                {display.subdomains.length > 0 && (
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ color: '#60a5fa', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+                      🌐 Sous-domaines actifs ({display.subdomains.length})
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {display.subdomains.map((s, i) => (
+                        <span key={i} style={{ background: '#1d4ed820', border: '1px solid #1d4ed840', borderRadius: 6, padding: '4px 10px', fontSize: 12, color: '#60a5fa', fontFamily: 'monospace' }}>
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* DNS Records */}
+                {Object.keys(display.dns_records).length > 0 && (
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+                      🔗 Enregistrements DNS
+                    </div>
+                    <div style={{ background: '#0a0e1a', borderRadius: 8, padding: '12px 16px', border: '1px solid #1e293b' }}>
+                      {Object.entries(display.dns_records).map(([k, v]) => (
+                        <div key={k} style={{ display: 'flex', gap: 12, padding: '4px 0', borderBottom: '1px solid #1e293b10', fontSize: 12 }}>
+                          <span style={{ color: '#475569', width: 40, textTransform: 'uppercase', fontWeight: 700 }}>{k}</span>
+                          <span style={{ color: '#94a3b8', fontFamily: 'monospace', flex: 1 }}>
+                            {Array.isArray(v) ? v.join(', ') : JSON.stringify(v)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* All sources */}
+                <div>
+                  <div style={{ color: '#64748b', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+                    🔎 Toutes les sources ({display.sources.length})
+                  </div>
+                  <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+                    {display.sources.map((s, i) => (
+                      <div key={i} style={{ display: 'flex', gap: 10, padding: '7px 10px', marginBottom: 4, background: '#0a0e1a', borderRadius: 6, fontSize: 12, borderLeft: `3px solid ${s.type.includes('email') ? '#ff6b35' : s.type === 'subdomain' ? '#60a5fa' : '#1e293b'}` }}>
+                        <span style={{ fontSize: 14, width: 20 }}>{SOURCE_ICON[s.type] ?? '•'}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ color: '#e2e8f0', fontWeight: 600 }}>{s.value}</div>
+                          <div style={{ color: '#475569', fontSize: 11, marginTop: 1 }}>{s.detail}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

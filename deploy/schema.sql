@@ -55,3 +55,53 @@ CREATE TABLE IF NOT EXISTS phishing_assessments (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     completed_at TIMESTAMPTZ
 );
+
+CREATE TABLE IF NOT EXISTS fintech_fraud_audits (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    domain TEXT NOT NULL,
+    target_url TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    checks JSONB DEFAULT '[]',
+    risk_score INT DEFAULT 0,
+    risk_level TEXT DEFAULT 'UNKNOWN',
+    summary TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS mandates (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tester_company TEXT NOT NULL DEFAULT 'INTEL Security',
+    client_name    TEXT NOT NULL,
+    client_email   TEXT NOT NULL,
+    client_company TEXT NOT NULL,
+    target_urls    TEXT[] NOT NULL DEFAULT '{}',
+    scope          TEXT[] NOT NULL DEFAULT '{}',
+    status         TEXT NOT NULL DEFAULT 'pending',
+    token          UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+    valid_from     DATE NOT NULL,
+    valid_until    DATE NOT NULL,
+    notes          TEXT,
+    signed_ip      TEXT,
+    signed_at      TIMESTAMPTZ,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS osint_scans (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    domain        TEXT NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'pending',
+    emails_found  TEXT[] DEFAULT '{}',
+    sources       JSONB DEFAULT '[]',
+    subdomains    TEXT[] DEFAULT '{}',
+    dns_records   JSONB DEFAULT '{}',
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at  TIMESTAMPTZ
+);
+
+-- Index
+CREATE INDEX IF NOT EXISTS idx_mandates_token  ON mandates(token);
+CREATE INDEX IF NOT EXISTS idx_mandates_status ON mandates(status);
+CREATE INDEX IF NOT EXISTS idx_osint_domain    ON osint_scans(domain);
+
+SELECT 'INTEL schema applied successfully' AS result;

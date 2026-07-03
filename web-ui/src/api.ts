@@ -101,6 +101,24 @@ export interface FintechFraudAudit {
   completed_at?: string;
 }
 
+export interface OsintSource {
+  type: string;
+  value: string;
+  detail: string;
+}
+
+export interface OsintScan {
+  id: string;
+  domain: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  emails_found: string[];
+  sources: OsintSource[];
+  subdomains: string[];
+  dns_records: Record<string, any>;
+  created_at: string;
+  completed_at?: string;
+}
+
 export interface Mandate {
   id: string;
   tester_company: string;
@@ -185,6 +203,19 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ target_url }),
+    });
+    return r.json();
+  },
+
+  async getOsintScans(): Promise<OsintScan[]> {
+    const r = await fetch(`${BASE}/osint`);
+    return r.json();
+  },
+  async startOsint(domain: string): Promise<OsintScan> {
+    const r = await fetch(`${BASE}/osint`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domain }),
     });
     return r.json();
   },
