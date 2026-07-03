@@ -1,42 +1,28 @@
 #!/bin/bash
 # ─────────────────────────────────────────────────────────────
-# INTEL — Script de déploiement automatique Plesk
-# Plesk l'exécute après chaque git push → git pull
+# INTEL — Script de déploiement Plesk
+# Exécuté automatiquement après chaque git pull
+# NE PAS utiliser PM2 ici (chroot Plesk ne le supporte pas)
+# Plesk redémarre Node.js automatiquement après ce script
 # ─────────────────────────────────────────────────────────────
 
-set -e  # Arrêter si une commande échoue
+set -e
 
 echo "🚀 [INTEL] Déploiement démarré — $(date)"
 
-# ── 1. Dépendances ────────────────────────────────────────────
-echo "📦 Installation des dépendances..."
-cd backend && npm install --production=false && cd ..
-cd web-ui  && npm install && cd ..
+# ── 1. Dépendances backend ────────────────────────────────────
+echo "📦 Installation backend..."
+cd backend
+npm install --production=false
+cd ..
 
-# ── 2. Build frontend ─────────────────────────────────────────
-echo "🏗️  Build du frontend React..."
-cd web-ui && npx vite build && cd ..
-echo "✅ Frontend buildé → web-ui/dist/"
+# ── 2. Dépendances + Build frontend ──────────────────────────
+echo "🏗️  Build frontend React..."
+cd web-ui
+npm install
+npx vite build
+cd ..
 
-# ── 3. Redémarrer le backend ──────────────────────────────────
-echo "🔄 Redémarrage du backend..."
-
-if command -v pm2 &> /dev/null; then
-  # PM2 disponible
-  if pm2 list | grep -q "intel-api"; then
-    pm2 restart intel-api
-    echo "✅ PM2 intel-api redémarré"
-  else
-    mkdir -p logs
-    pm2 start ecosystem.config.js
-    pm2 save
-    echo "✅ PM2 intel-api démarré (premier lancement)"
-  fi
-else
-  echo "⚠️  PM2 non trouvé — installer avec : npm install -g pm2 tsx"
-  echo "    Puis relancer : pm2 start ecosystem.config.js && pm2 save"
-fi
-
-echo "✅ [INTEL] Déploiement terminé — $(date)"
-echo "   Frontend : web-ui/dist/"
-echo "   API      : http://localhost:3000/api/health"
+echo "✅ [INTEL] Build terminé — $(date)"
+echo "   → web-ui/dist/ prêt"
+echo "   → Plesk va redémarrer Node.js automatiquement"
