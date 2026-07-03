@@ -23,6 +23,14 @@ export interface PhishingAssessment {
   completed_at?: string;
 }
 
+export interface GeoStat {
+  country: string;
+  country_code: string;
+  requests: number;
+  successful: number;
+  failed: number;
+}
+
 export interface LoadTest {
   id: string;
   target_url: string;
@@ -37,6 +45,7 @@ export interface LoadTest {
   avg_response_ms: number;
   server_crash: boolean;
   verdict?: string;
+  results?: { geo_breakdown?: GeoStat[]; countries_used?: number };
   created_at: string;
   completed_at?: string;
 }

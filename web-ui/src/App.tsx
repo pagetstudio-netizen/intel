@@ -918,16 +918,52 @@ function AppInner() {
                         {(selected as LoadTest).verdict}
                       </div>
                     )}
-                    {selected.status === 'completed' && (
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                        {[['Total req.', (selected as LoadTest).total_requests], ['Succès', (selected as LoadTest).successful_requests], ['Échecs', (selected as LoadTest).failed_requests], ['Req/s', (selected as LoadTest).requests_per_second], ['Moy.', `${(selected as LoadTest).avg_response_ms}ms`], ['Crash', (selected as LoadTest).server_crash ? '💥 OUI' : '✅ NON']].map(([k, v]) => (
-                          <div key={String(k)} style={{ background: '#0a0e1a', borderRadius: 6, padding: '10px 12px' }}>
-                            <div style={{ color: '#475569', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 3 }}>{k}</div>
-                            <div style={{ color: '#e2e8f0', fontSize: 16, fontWeight: 700 }}>{v}</div>
+                    {selected.status === 'completed' && (() => {
+                      const lt = selected as LoadTest;
+                      const geo = lt.results?.geo_breakdown ?? [];
+                      const FLAG: Record<string, string> = { FR:'🇫🇷', US:'🇺🇸', GB:'🇬🇧', DE:'🇩🇪', BR:'🇧🇷', NG:'🇳🇬', MA:'🇲🇦', SN:'🇸🇳', KE:'🇰🇪', ZA:'🇿🇦', IN:'🇮🇳', CA:'🇨🇦' };
+                      return (
+                        <>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
+                            {[['Total req.', lt.total_requests], ['Succès', lt.successful_requests], ['Échecs', lt.failed_requests], ['Req/s', lt.requests_per_second], ['Moy.', `${lt.avg_response_ms}ms`], ['Crash', lt.server_crash ? '💥 OUI' : '✅ NON']].map(([k, v]) => (
+                              <div key={String(k)} style={{ background: '#0a0e1a', borderRadius: 6, padding: '10px 12px' }}>
+                                <div style={{ color: '#475569', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 3 }}>{k}</div>
+                                <div style={{ color: '#e2e8f0', fontSize: 16, fontWeight: 700 }}>{v}</div>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    )}
+                          {geo.length > 0 && (
+                            <div>
+                              <div style={{ color: '#475569', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+                                🌍 Distribution géographique — {geo.length} pays
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {geo.filter(g => g.requests > 0).sort((a, b) => b.requests - a.requests).map(g => {
+                                  const pct = lt.total_requests > 0 ? Math.round((g.requests / lt.total_requests) * 100) : 0;
+                                  const successRate = g.requests > 0 ? Math.round((g.successful / g.requests) * 100) : 0;
+                                  return (
+                                    <div key={g.country_code} style={{ background: '#0a0e1a', borderRadius: 6, padding: '7px 10px' }}>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                        <span style={{ fontSize: 12, color: '#cbd5e1' }}>
+                                          {FLAG[g.country_code] ?? '🌐'} {g.country}
+                                        </span>
+                                        <div style={{ display: 'flex', gap: 8, fontSize: 11 }}>
+                                          <span style={{ color: '#475569' }}>{g.requests.toLocaleString()} req</span>
+                                          <span style={{ color: successRate >= 80 ? '#60d394' : successRate >= 50 ? '#fbbf24' : '#ff6b35', fontWeight: 700 }}>{successRate}% ✓</span>
+                                        </div>
+                                      </div>
+                                      <div style={{ background: '#1e293b', borderRadius: 3, height: 4, overflow: 'hidden' }}>
+                                        <div style={{ width: `${pct}%`, height: '100%', background: successRate >= 80 ? '#60d394' : successRate >= 50 ? '#fbbf24' : '#ff6b35', borderRadius: 3, transition: 'width 0.3s' }} />
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
 

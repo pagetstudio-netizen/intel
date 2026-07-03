@@ -94,8 +94,8 @@ async fn main() {
         }
 
         Commands::LoadTest { target, users, rps, duration } => {
-            println!("⚡ INTEL Load Tester");
-            println!("━━━━━━━━━━━━━━━━━━━━");
+            println!("⚡ INTEL Multi-Geo Load Tester");
+            println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
             println!("Target   : {}", target);
             println!("Users    : {}", users);
             println!("Req/s    : {}", rps);
@@ -105,6 +105,7 @@ async fn main() {
             let tester = LoadTester::new();
             match tester.run_load_test(&target, users, rps, duration).await {
                 Ok(report) => {
+                    // Machine-readable block for backend parsing
                     println!("TOTAL_REQUESTS={}", report.total_requests);
                     println!("SUCCESSFUL={}", report.successful_requests);
                     println!("FAILED={}", report.failed_requests);
@@ -112,6 +113,11 @@ async fn main() {
                     println!("AVG_MS={}", report.average_response_time_ms);
                     println!("STATUS={}", report.status);
                     println!("CRASH={}", report.server_crash);
+                    println!("COUNTRIES={}", report.countries_used);
+                    // Geo breakdown as JSON line for backend
+                    if let Ok(geo_json) = serde_json::to_string(&report.geo_breakdown) {
+                        println!("GEO_BREAKDOWN={}", geo_json);
+                    }
                 }
                 Err(e) => { eprintln!("❌ Load test failed: {}", e); std::process::exit(1); }
             }

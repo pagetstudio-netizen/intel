@@ -140,15 +140,20 @@ router.post('/', async (req: Request, res: Response) => {
       : '❌ SYSTÈME INSTABLE — Trop d\'erreurs sous charge';
 
     try {
+      // Store geo_breakdown in results column (JSONB)
+      const results = {
+        geo_breakdown: data.geoBreakdown,
+        countries_used: data.countries,
+      };
       await pool.query(
         `UPDATE load_tests SET
           status = 'completed',
           total_requests = $1, successful_requests = $2, failed_requests = $3,
           requests_per_second = $4, avg_response_ms = $5,
-          server_crash = $6, verdict = $7, completed_at = NOW()
-         WHERE id = $8`,
+          server_crash = $6, verdict = $7, results = $8, completed_at = NOW()
+         WHERE id = $9`,
         [data.total, data.successful, data.failed, data.rps, data.avgMs,
-         effectiveCrash, verdict, job.id]
+         effectiveCrash, verdict, JSON.stringify(results), job.id]
       );
     } catch (dbErr) {
       console.error('Load test DB update failed:', dbErr);
@@ -180,13 +185,20 @@ function parseLoadOutput(output: string) {
     const m = output.match(new RegExp(`^${key}=(.+)$`, 'm'));
     return m ? m[1].trim() : '0';
   };
+  let geoBreakdown: any[] = [];
+  try {
+    const geoRaw = get('GEO_BREAKDOWN');
+    if (geoRaw && geoRaw !== '0') geoBreakdown = JSON.parse(geoRaw);
+  } catch {}
   return {
-    total:      parseInt(get('TOTAL_REQUESTS'), 10) || 0,
-    successful: parseInt(get('SUCCESSFUL'),     10) || 0,
-    failed:     parseInt(get('FAILED'),         10) || 0,
-    rps:        parseInt(get('RPS'),            10) || 0,
-    avgMs:      parseInt(get('AVG_MS'),         10) || 0,
-    crash:      get('CRASH') === 'true',
+    total:        parseInt(get('TOTAL_REQUESTS'), 10) || 0,
+    successful:   parseInt(get('SUCCESSFUL'),     10) || 0,
+    failed:       parseInt(get('FAILED'),         10) || 0,
+    rps:          parseInt(get('RPS'),            10) || 0,
+    avgMs:        parseInt(get('AVG_MS'),         10) || 0,
+    crash:        get('CRASH') === 'true',
+    countries:    parseInt(get('COUNTRIES'),      10) || 0,
+    geoBreakdown,
   };
 }
 
