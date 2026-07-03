@@ -1,8 +1,25 @@
 import { Router, Request, Response } from 'express';
 import { pool } from '../db';
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 
 const router = Router();
+
+function createTransport() {
+  const host = process.env.SMTP_HOST;
+  const port = parseInt(process.env.SMTP_PORT || '587');
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  if (!host || !user || !pass) return null;
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+    tls: { rejectUnauthorized: false },
+  });
+}
 
 // POST /api/demo-email
 router.post('/', async (req: Request, res: Response) => {
@@ -12,12 +29,11 @@ router.post('/', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'assessment_id et to_email requis' });
   }
 
-  // Validate destination email (simple check)
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to_email)) {
     return res.status(400).json({ error: 'Adresse email invalide' });
   }
 
-  // Fetch assessment
+  // Fetch assessment to get the client's domain
   let assessment: Record<string, any>;
   try {
     const { rows } = await pool.query(
@@ -29,52 +45,45 @@ router.post('/', async (req: Request, res: Response) => {
     return res.status(500).json({ error: 'Erreur base de données' });
   }
 
-  const apiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.RESEND_FROM_EMAIL;
-
-  if (!apiKey || !fromEmail) {
+  const transport = createTransport();
+  if (!transport) {
     return res.status(503).json({
-      error: 'RESEND_API_KEY et RESEND_FROM_EMAIL non configurés',
+      error: 'SMTP non configuré',
       setup: true,
+      required: ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS'],
     });
   }
 
-  const resend = new Resend(apiKey);
   const domain = assessment.domain as string;
   const displayName = spoof_name || `Support ${domain}`;
-  const spoofFrom = `${displayName} <${fromEmail}>`;
 
-  // Build realistic phishing email template
+  // From uses the CLIENT's domain — this is the spoof
+  const spoofFrom = `"${displayName}" <noreply@${domain}>`;
+
   const html = buildPhishingTemplate(domain, displayName);
 
   try {
-    const result = await resend.emails.send({
-      from: spoofFrom,
-      to: [to_email],
-      replyTo: `noreply@${domain}`,
+    await transport.sendMail({
+      from: spoofFrom,           // ← adresse du domaine client
+      to: to_email,
+      replyTo: spoofFrom,
       subject: `[ACTION REQUISE] Vérification de sécurité — ${domain}`,
       html,
     });
 
-    if (result.error) {
-      return res.status(500).json({ error: result.error.message });
-    }
-
-    // Log the demo in the assessment
     await pool.query(
-      `UPDATE phishing_assessments SET
-        summary = summary || ' | Demo email envoyé à ' || $1
+      `UPDATE phishing_assessments
+       SET summary = COALESCE(summary,'') || ' | Email envoyé à ' || $1
        WHERE id = $2`,
       [to_email, assessment_id]
     );
 
     res.json({
       ok: true,
-      message: `Email de démonstration envoyé à ${to_email}`,
-      email_id: result.data?.id,
+      message: `Email envoyé à ${to_email} en se faisant passer pour noreply@${domain}`,
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message ?? 'Échec de l\'envoi' });
+    res.status(500).json({ error: err.message ?? "Échec de l'envoi" });
   }
 });
 
@@ -103,7 +112,6 @@ function buildPhishingTemplate(domain: string, displayName: string): string {
     .info-label { color: #64748b; }
     .info-value { color: #1e293b; font-weight: 600; }
     .footer { background: #f8fafc; padding: 20px 32px; text-align: center; color: #94a3b8; font-size: 12px; border-top: 1px solid #e2e8f0; }
-    .demo-badge { background: #fbbf24; color: #1e293b; text-align: center; padding: 12px; font-size: 13px; font-weight: bold; border-radius: 0 0 8px 8px; }
   </style>
 </head>
 <body>
@@ -152,9 +160,6 @@ function buildPhishingTemplate(domain: string, displayName: string): string {
     <div class="footer">
       © ${year} ${domain} · Tous droits réservés<br>
       Ce message a été envoyé depuis ${domain} · <a href="#" style="color:#94a3b8">Se désabonner</a>
-    </div>
-    <div class="demo-badge">
-      🔬 CECI EST UN EMAIL DE DÉMONSTRATION PENTEST — Envoyé par INTEL Security Platform
     </div>
   </div>
 </body>
