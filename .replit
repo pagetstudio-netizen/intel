@@ -46,7 +46,7 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npx tsx backend/src/index.ts"
+args = "cd backend && npm run dev"
 waitForPort = 3000
 
 [[workflows.workflow]]
@@ -58,12 +58,12 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npx vite web-ui --port 5000 --host 0.0.0.0"
+args = "cd web-ui && npm run dev"
 waitForPort = 5000
 
 [[ports]]
 localPort = 3000
-externalPort = 80
+externalPort = 3000
 
 [[ports]]
 localPort = 5000
