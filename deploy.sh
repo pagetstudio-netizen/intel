@@ -17,13 +17,13 @@ npm install --production=false
 # ── 1. Dépendances backend ────────────────────────────────────
 echo "📦 Installation backend..."
 cd backend
-npm install --production=false
+npm ci
 cd ..
 
 # ── 2. Dépendances + Build frontend ──────────────────────────
 echo "🏗️  Build frontend React..."
 cd web-ui
-npm install
+npm ci
 npx vite build
 cd ..
 

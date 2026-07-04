@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "INTEL — Pentest & Security Auditing Platform",
   "scripts": {
-    "postinstall": "cd backend && npm install --production=false && cd ../web-ui && npm install && npx vite build",
+    "postinstall": "cd backend && npm ci && cd ../web-ui && npm ci && npx vite build",
     "build": "npm run build:frontend && npm run build:backend",
     "build:frontend": "cd web-ui && npm install && npx vite build",
     "build:backend": "cd backend && npm install && npx tsc --noEmit false --outDir dist || true",
