@@ -57,7 +57,7 @@ function needsBuild() {
 if (needsBuild()) {
   console.log('[INTEL] Installation des dépendances web-ui...');
   try {
-    execSync('npm install --prefer-offline', {
+    execSync('npm install', {
       cwd: path.join(ROOT, 'web-ui'),
       stdio: 'inherit',
     });
@@ -80,7 +80,7 @@ const backendModules = path.join(ROOT, 'backend', 'node_modules');
 if (!fs.existsSync(backendModules)) {
   console.log('[INTEL] Installation des dépendances backend...');
   try {
-    execSync('npm install --prefer-offline', {
+    execSync('npm install', {
       cwd: path.join(ROOT, 'backend'),
       stdio: 'inherit',
     });
