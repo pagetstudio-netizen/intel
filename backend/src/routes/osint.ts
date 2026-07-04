@@ -131,7 +131,7 @@ async function fetchCrtSh(domain: string): Promise<string[]> {
       { signal: ctrl.signal, headers: { 'Accept': 'application/json' } }
     );
     if (!resp.ok) return [];
-    const data: { name_value: string }[] = await resp.json();
+    const data = (await resp.json()) as { name_value: string }[];
     const names = new Set<string>();
     for (const entry of data) {
       for (const name of entry.name_value.split('\n')) {
@@ -269,7 +269,7 @@ async function runOsintScan(id: string, domain: string) {
     const caa = await dns.resolveCaa(domain).catch(() => []);
     if (caa.length) {
       dnsRecords.caa = caa.map(r => `${r.critical} ${r.issue ?? r.issuewild ?? ''}`);
-      sources.push({ type: 'dns_caa', value: 'CAA Record', detail: `CA(s) autorisée(s): ${caa.map(r => r.value ?? r.issue ?? '').join(', ')}` });
+      sources.push({ type: 'dns_caa', value: 'CAA Record', detail: `CA(s) autorisée(s): ${caa.map(r => r.issue ?? r.issuewild ?? r.iodef ?? '').join(', ')}` });
     } else {
       sources.push({ type: 'dns_caa_missing', value: '⚠️ Pas de CAA', detail: 'Toute CA peut émettre un certificat SSL pour ce domaine — risque de faux certificat' });
     }

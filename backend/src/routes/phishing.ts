@@ -207,7 +207,7 @@ async function runAssessment(url: string, domain: string) {
     id: 'dmarc',
     name: 'Politique DMARC (p=reject/quarantine)',
     category: 'email',
-    passed: dmarcReject ?? false,
+    passed: !!dmarcReject,
     risk: 'CRITICAL',
     detail: dmarc
       ? (dmarcReject ? `DMARC avec ${dmarc.match(/p=\w+/)?.[0]}` : `DMARC présent mais politique faible: ${dmarc}`)
