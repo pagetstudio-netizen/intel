@@ -1,4 +1,27 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, Component, ReactNode } from 'react';
+
+// ── Error Boundary — empêche la page blanche sur crash React ──────────────────
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(e: Error) { return { error: e.message }; }
+  render() {
+    if (this.state.error) return (
+      <div style={{ minHeight: '100vh', background: '#0a0e1a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
+        <div style={{ fontSize: 32 }}>⚠️</div>
+        <div style={{ color: '#ff3b5c', fontWeight: 700, fontSize: 18 }}>Une erreur est survenue</div>
+        <div style={{ color: '#64748b', fontSize: 13, maxWidth: 400, textAlign: 'center' }}>{this.state.error}</div>
+        <button onClick={() => { this.setState({ error: null }); window.location.reload(); }}
+          style={{ marginTop: 8, background: '#1e3a5f', color: '#60a5fa', border: '1px solid #2563eb', borderRadius: 6, padding: '8px 20px', cursor: 'pointer', fontSize: 13 }}>
+          Recharger la page
+        </button>
+      </div>
+    );
+    return this.props.children;
+  }
+}
 import { api, Scan, FuzzJob, LoadTest, PhishingAssessment, PhishingCheck, FintechFraudAudit, FraudCheck, Mandate, OsintScan, AuthAudit, AuthCheck, ExposedEndpoint } from './api';
 import './app.css';
 
@@ -388,6 +411,15 @@ function AppInner() {
   const [mError, setMError] = useState('');
   const [mCopied, setMCopied] = useState<string | null>(null);
 
+  // ── Toast d'erreur global ─────────────────────────────────────────────────
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function showError(msg: string) {
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 6000);
+  }
+
   const SCOPE_OPTIONS = [
     { id: 'vuln_scan', label: '🔍 Scan de vulnérabilités' },
     { id: 'fuzzing', label: '🕸 Découverte d\'endpoints (Fuzzer)' },
@@ -397,27 +429,31 @@ function AppInner() {
   ];
 
   const refresh = useCallback(async () => {
-    const [s, f, l, p, fa, m, os, aa] = await Promise.all([
-      api.getScans(), api.getFuzzJobs(), api.getLoadTests(),
-      api.getPhishingAssessments(), api.getFintechFraudAudits(),
-      api.getMandates(), api.getOsintScans(), api.getAuthAudits(),
-    ]);
-    setScans(s); setFuzzes(f); setLoadTests(l); setPhishings(p); setFraudAudits(fa); setMandates(m); setOsintScans(os); setAuthAudits(aa);
-    if (activeAuthAudit) {
-      const fresh = aa.find(x => x.id === activeAuthAudit.id);
-      if (fresh) setActiveAuthAudit(fresh);
-    }
-    if (activeOsint) {
-      const fresh = os.find(x => x.id === activeOsint.id);
-      if (fresh) setActiveOsint(fresh);
-    }
-    if (selected) {
-      const fresh = [...s, ...f, ...l, ...p, ...fa].find(x => x.id === selected.id);
-      if (fresh) setSelected(fresh);
-    }
-    if (activeFuzz) {
-      const fresh = f.find(x => x.id === activeFuzz.id);
-      if (fresh) setActiveFuzz(fresh);
+    try {
+      const [s, f, l, p, fa, m, os, aa] = await Promise.all([
+        api.getScans(), api.getFuzzJobs(), api.getLoadTests(),
+        api.getPhishingAssessments(), api.getFintechFraudAudits(),
+        api.getMandates(), api.getOsintScans(), api.getAuthAudits(),
+      ]);
+      setScans(s); setFuzzes(f); setLoadTests(l); setPhishings(p); setFraudAudits(fa); setMandates(m); setOsintScans(os); setAuthAudits(aa);
+      if (activeAuthAudit) {
+        const fresh = aa.find(x => x.id === activeAuthAudit.id);
+        if (fresh) setActiveAuthAudit(fresh);
+      }
+      if (activeOsint) {
+        const fresh = os.find(x => x.id === activeOsint.id);
+        if (fresh) setActiveOsint(fresh);
+      }
+      if (selected) {
+        const fresh = [...s, ...f, ...l, ...p, ...fa].find(x => x.id === selected.id);
+        if (fresh) setSelected(fresh);
+      }
+      if (activeFuzz) {
+        const fresh = f.find(x => x.id === activeFuzz.id);
+        if (fresh) setActiveFuzz(fresh);
+      }
+    } catch {
+      // refresh silencieux — ne pas afficher d'erreur pour le polling automatique
     }
   }, [selected, activeFuzz, activeOsint]);
 
@@ -425,34 +461,45 @@ function AppInner() {
 
   async function handlePhishing(e: React.FormEvent) {
     e.preventDefault(); setPhLoading(true);
-    try { const r = await api.startPhishing(phTarget); setSelected(r); await refresh(); setTab('history'); } finally { setPhLoading(false); }
+    try { const r = await api.startPhishing(phTarget); setSelected(r); await refresh(); setTab('history'); }
+    catch (err: any) { showError(err?.message || 'Erreur lors de l\'analyse phishing'); }
+    finally { setPhLoading(false); }
   }
   async function handleScan(e: React.FormEvent) {
     e.preventDefault(); setScanLoading(true);
-    try { await api.startScan(scanTarget, scanDeep); await refresh(); setTab('history'); } finally { setScanLoading(false); }
+    try { await api.startScan(scanTarget, scanDeep); await refresh(); setTab('history'); }
+    catch (err: any) { showError(err?.message || 'Erreur lors du scan'); }
+    finally { setScanLoading(false); }
   }
   async function handleFuzz(e: React.FormEvent) {
     e.preventDefault(); setFuzzLoading(true); setActiveFuzz(null);
-    try {
-      const r = await api.startFuzz(fuzzTarget, fuzzConcurrency);
-      setActiveFuzz(r);
-    } finally { setFuzzLoading(false); }
+    try { const r = await api.startFuzz(fuzzTarget, fuzzConcurrency); setActiveFuzz(r); }
+    catch (err: any) { showError(err?.message || 'Erreur lors du fuzzing'); }
+    finally { setFuzzLoading(false); }
   }
   async function handleLoadTest(e: React.FormEvent) {
     e.preventDefault(); setLtLoading(true);
-    try { const r = await api.startLoadTest(ltTarget, ltUsers, ltRps, ltDuration); setSelected(r); await refresh(); setTab('history'); } finally { setLtLoading(false); }
+    try { const r = await api.startLoadTest(ltTarget, ltUsers, ltRps, ltDuration); setSelected(r); await refresh(); setTab('history'); }
+    catch (err: any) { showError(err?.message || 'Erreur lors du load test'); }
+    finally { setLtLoading(false); }
   }
   async function handleFraud(e: React.FormEvent) {
     e.preventDefault(); setFraudLoading(true);
-    try { const r = await api.startFintechFraud(fraudTarget); setSelected(r); await refresh(); setTab('history'); } finally { setFraudLoading(false); }
+    try { const r = await api.startFintechFraud(fraudTarget); setSelected(r); await refresh(); setTab('history'); }
+    catch (err: any) { showError(err?.message || 'Erreur lors de l\'audit fraude'); }
+    finally { setFraudLoading(false); }
   }
   async function handleAuthAudit(e: React.FormEvent) {
     e.preventDefault(); setAuthLoading(true); setActiveAuthAudit(null);
-    try { const r = await api.startAuthAudit(authTarget); setActiveAuthAudit(r); } finally { setAuthLoading(false); }
+    try { const r = await api.startAuthAudit(authTarget); setActiveAuthAudit(r); }
+    catch (err: any) { showError(err?.message || 'Erreur lors de l\'audit auth'); }
+    finally { setAuthLoading(false); }
   }
   async function handleOsint(e: React.FormEvent) {
     e.preventDefault(); setOsintLoading(true); setActiveOsint(null);
-    try { const r = await api.startOsint(osintDomain); setActiveOsint(r); } finally { setOsintLoading(false); }
+    try { const r = await api.startOsint(osintDomain); setActiveOsint(r); }
+    catch (err: any) { showError(err?.message || 'Erreur lors du scan OSINT'); }
+    finally { setOsintLoading(false); }
   }
 
   async function handleCreateMandate(e: React.FormEvent) {
@@ -512,6 +559,14 @@ function AppInner() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#0a0e1a' }}>
+      {/* ── Toast erreur global ──────────────────────────────────────────── */}
+      {toast && (
+        <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 9999, background: '#1a0a0e', border: '1px solid #ff3b5c', borderRadius: 8, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 12, maxWidth: 420, boxShadow: '0 4px 20px #00000060' }}>
+          <span style={{ fontSize: 18 }}>⚠️</span>
+          <span style={{ color: '#fca5a5', fontSize: 13, flex: 1 }}>{toast}</span>
+          <button onClick={() => setToast(null)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0 }}>✕</button>
+        </div>
+      )}
       <header style={{ background: '#0d1424', borderBottom: '1px solid #1e293b', padding: '14px 28px', display: 'flex', alignItems: 'center', gap: 14 }}>
         <span style={{ fontSize: 18, fontWeight: 700, color: '#60a5fa', letterSpacing: 2 }}>⬡ INTEL</span>
         <span style={{ color: '#475569', fontSize: 12 }}>Security Platform</span>
@@ -1679,6 +1734,9 @@ function OsintTab({ osintDomain, setOsintDomain, handleOsint, osintLoading, acti
 
 export default function App() {
   const mandateToken = new URLSearchParams(window.location.search).get('mandate');
-  if (mandateToken) return <ClientConfirmPage token={mandateToken} />;
-  return <AppInner />;
+  return (
+    <ErrorBoundary>
+      {mandateToken ? <ClientConfirmPage token={mandateToken} /> : <AppInner />}
+    </ErrorBoundary>
+  );
 }

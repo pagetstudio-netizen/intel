@@ -1,5 +1,18 @@
 const BASE = '/api';
 
+async function safeFetch<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
+  const r = await fetch(input, init);
+  if (!r.ok) {
+    let msg = `Erreur ${r.status}`;
+    try {
+      const body = await r.json();
+      if (body?.error) msg = body.error;
+    } catch {}
+    throw new Error(msg);
+  }
+  return r.json();
+}
+
 export interface PhishingCheck {
   id: string;
   name: string;
@@ -180,126 +193,58 @@ export interface AuthAudit {
 }
 
 export const api = {
-  async getScans(): Promise<Scan[]> {
-    const r = await fetch(`${BASE}/scans`);
-    return r.json();
-  },
-  async getScan(id: string): Promise<Scan> {
-    const r = await fetch(`${BASE}/scans/${id}`);
-    return r.json();
-  },
-  async startScan(target_url: string, deep = false, timeout = 60): Promise<Scan> {
-    const r = await fetch(`${BASE}/scans`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ target_url, deep, timeout }),
-    });
-    return r.json();
-  },
-  async getFuzzJobs(): Promise<FuzzJob[]> {
-    const r = await fetch(`${BASE}/fuzz`);
-    return r.json();
-  },
-  async getFuzzJob(id: string): Promise<FuzzJob> {
-    const r = await fetch(`${BASE}/fuzz/${id}`);
-    return r.json();
-  },
-  async startFuzz(target_url: string, concurrency = 10, timeout_ms = 5000): Promise<FuzzJob> {
-    const r = await fetch(`${BASE}/fuzz`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ target_url, concurrency, timeout_ms }),
-    });
-    return r.json();
-  },
-  async getLoadTests(): Promise<LoadTest[]> {
-    const r = await fetch(`${BASE}/load-test`);
-    return r.json();
-  },
-  async startLoadTest(target_url: string, concurrent_users = 50, rps = 10, duration_seconds = 30): Promise<LoadTest> {
-    const r = await fetch(`${BASE}/load-test`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ target_url, concurrent_users, rps, duration_seconds }),
-    });
-    return r.json();
-  },
-  async getPhishingAssessments(): Promise<PhishingAssessment[]> {
-    const r = await fetch(`${BASE}/phishing`);
-    return r.json();
-  },
-  async startPhishing(target_url: string): Promise<PhishingAssessment> {
-    const r = await fetch(`${BASE}/phishing`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ target_url }),
-    });
-    return r.json();
-  },
-  async getFintechFraudAudits(): Promise<FintechFraudAudit[]> {
-    const r = await fetch(`${BASE}/fintech-fraud`);
-    return r.json();
-  },
-  async startFintechFraud(target_url: string): Promise<FintechFraudAudit> {
-    const r = await fetch(`${BASE}/fintech-fraud`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ target_url }),
-    });
-    return r.json();
-  },
+  getScans: (): Promise<Scan[]> =>
+    safeFetch(`${BASE}/scans`),
+  getScan: (id: string): Promise<Scan> =>
+    safeFetch(`${BASE}/scans/${id}`),
+  startScan: (target_url: string, deep = false, timeout = 60): Promise<Scan> =>
+    safeFetch(`${BASE}/scans`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target_url, deep, timeout }) }),
 
-  async getOsintScans(): Promise<OsintScan[]> {
-    const r = await fetch(`${BASE}/osint`);
-    return r.json();
-  },
-  async startOsint(domain: string): Promise<OsintScan> {
-    const r = await fetch(`${BASE}/osint`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ domain }),
-    });
-    return r.json();
-  },
+  getFuzzJobs: (): Promise<FuzzJob[]> =>
+    safeFetch(`${BASE}/fuzz`),
+  getFuzzJob: (id: string): Promise<FuzzJob> =>
+    safeFetch(`${BASE}/fuzz/${id}`),
+  startFuzz: (target_url: string, concurrency = 10, timeout_ms = 5000): Promise<FuzzJob> =>
+    safeFetch(`${BASE}/fuzz`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target_url, concurrency, timeout_ms }) }),
 
-  async getMandates(): Promise<Mandate[]> {
-    const r = await fetch(`${BASE}/mandates`);
-    return r.json();
-  },
-  async createMandate(data: {
+  getLoadTests: (): Promise<LoadTest[]> =>
+    safeFetch(`${BASE}/load-test`),
+  startLoadTest: (target_url: string, concurrent_users = 50, rps = 10, duration_seconds = 30): Promise<LoadTest> =>
+    safeFetch(`${BASE}/load-test`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target_url, concurrent_users, rps, duration_seconds }) }),
+
+  getPhishingAssessments: (): Promise<PhishingAssessment[]> =>
+    safeFetch(`${BASE}/phishing`),
+  startPhishing: (target_url: string): Promise<PhishingAssessment> =>
+    safeFetch(`${BASE}/phishing`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target_url }) }),
+
+  getFintechFraudAudits: (): Promise<FintechFraudAudit[]> =>
+    safeFetch(`${BASE}/fintech-fraud`),
+  startFintechFraud: (target_url: string): Promise<FintechFraudAudit> =>
+    safeFetch(`${BASE}/fintech-fraud`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target_url }) }),
+
+  getOsintScans: (): Promise<OsintScan[]> =>
+    safeFetch(`${BASE}/osint`),
+  startOsint: (domain: string): Promise<OsintScan> =>
+    safeFetch(`${BASE}/osint`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ domain }) }),
+
+  getMandates: (): Promise<Mandate[]> =>
+    safeFetch(`${BASE}/mandates`),
+  createMandate: (data: {
     tester_company: string; client_name: string; client_email: string;
     client_company: string; target_urls: string[]; scope: string[];
     valid_from: string; valid_until: string; notes?: string;
-  }): Promise<Mandate> {
-    const r = await fetch(`${BASE}/mandates`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    return r.json();
-  },
-  async getMandateByToken(token: string): Promise<Mandate> {
-    const r = await fetch(`${BASE}/mandates/confirm/${token}`);
-    return r.json();
-  },
-  async getAuthAudits(): Promise<AuthAudit[]> {
-    const r = await fetch(`${BASE}/auth-audit`);
-    return r.json();
-  },
-  async startAuthAudit(target_url: string): Promise<AuthAudit> {
-    const r = await fetch(`${BASE}/auth-audit`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ target_url }),
-    });
-    return r.json();
-  },
+  }): Promise<Mandate> =>
+    safeFetch(`${BASE}/mandates`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
+  getMandateByToken: (token: string): Promise<Mandate> =>
+    safeFetch(`${BASE}/mandates/confirm/${token}`),
 
-  async confirmMandate(token: string): Promise<Mandate> {
-    const r = await fetch(`${BASE}/mandates/confirm/${token}`, { method: 'POST' });
-    return r.json();
-  },
-  async revokeMandate(id: string): Promise<void> {
-    await fetch(`${BASE}/mandates/${id}`, { method: 'DELETE' });
-  },
+  getAuthAudits: (): Promise<AuthAudit[]> =>
+    safeFetch(`${BASE}/auth-audit`),
+  startAuthAudit: (target_url: string): Promise<AuthAudit> =>
+    safeFetch(`${BASE}/auth-audit`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target_url }) }),
+
+  confirmMandate: (token: string): Promise<Mandate> =>
+    safeFetch(`${BASE}/mandates/confirm/${token}`, { method: 'POST' }),
+  revokeMandate: (id: string): Promise<void> =>
+    safeFetch(`${BASE}/mandates/${id}`, { method: 'DELETE' }),
 };
