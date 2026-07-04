@@ -74,4 +74,6 @@ localPort = 5001
 externalPort = 3001
 
 [deployment]
-deploymentTarget = "cloudrun"
+deploymentTarget = "autoscale"
+run = ["node", "server.js"]
+build = ["bash", "-c", "cd backend && npm install --production=false && cd ../web-ui && npm install && npx vite build"]
