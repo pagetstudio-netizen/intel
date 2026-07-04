@@ -1,58 +1,99 @@
-# INTEL - Pentest & Security Auditing Platform
+# INTEL — Pentest & Security Auditing Platform
 
-A suite of security tools for authorized penetration testing and security auditing.
+Plateforme d'audit de sécurité pour les tests de pénétration autorisés. Conçue pour les audits fintech et la conformité OWASP Top 10.
 
 ## Stack
 
-- **Language**: Rust (security-core engine)
-- **Modules**: Vulnerability scanner, SAST, dependency scanner, endpoint fuzzer, load tester, fintech compliance scanner
+| Couche | Technologie |
+|---|---|
+| Frontend | React + TypeScript + Vite (port 5000) |
+| Backend | Node.js + TypeScript + Express (port 3000) |
+| Moteur sécurité | Rust (`security-core/`) — compilé en binaire |
+| Base de données | PostgreSQL (`DATABASE_URL`) |
 
-## How to Build
+## Modules
+
+- **Phishing** — analyse anti-phishing (DMARC, SPF, DKIM, headers HTTP)
+- **Fraude API** — audit de conformité fintech
+- **Auth Audit** — analyse des endpoints d'authentification
+- **Load Test** — tests de charge / crash serveur
+- **Scanner** — scan de vulnérabilités (SAST, CVE, dépendances)
+- **Fuzzer** — découverte d'endpoints
+- **OSINT** — collecte d'informations publiques
+- **Mandats** — gestion des mandats de test (avec signature client)
+
+## Lancer le projet (développement)
 
 ```bash
-cd security-core
-cargo build --release
+# Backend (port 3000)
+cd backend && npm install && npm run dev
+
+# Frontend (port 5000)
+cd web-ui && npm install && npm run dev
+
+# Build Rust
+cd security-core && cargo build --release
 ```
 
-The compiled binary will be at `security-core/target/release/intel`.
+## Déploiement Plesk
 
-## How to Run
+1. Push sur GitHub
+2. Dans Plesk : **Pull** → **Deploy Now** → **Restart**
+3. Le script `deploy.sh` s'exécute automatiquement :
+   - `npm install` backend + frontend
+   - `npm run build` frontend (génère `web-ui/dist/`)
+   - `cargo build --release` (si Rust installé sur le serveur)
 
-### Vulnerability Scan
+### Première installation sur Plesk
+
+Appliquer le schéma PostgreSQL **une seule fois** :
 ```bash
-./security-core/target/release/intel scan --target http://your-app.com
-./security-core/target/release/intel scan --target http://your-app.com --deep --timeout 120
+psql "$DATABASE_URL" -f deploy/schema.sql
 ```
 
-### Endpoint Fuzzer
-```bash
-./security-core/target/release/intel fuzz --target http://your-app.com
-./security-core/target/release/intel fuzz --target http://your-app.com --concurrency 20
-```
+### Variables d'environnement requises (Plesk > Node.js > Variables)
 
-## Project Structure
+| Variable | Obligatoire | Description |
+|---|---|---|
+| `DATABASE_URL` | ✅ | Connection string PostgreSQL |
+| `JWT_SECRET` | ✅ | Clé secrète JWT (générer avec `openssl rand -hex 32`) |
+| `NODE_ENV` | ✅ | Mettre `production` sur Plesk |
+| `PORT` | ✅ | Port Node.js (ex: `3000`) |
+| `RESEND_API_KEY` | ⬜ | Pour l'envoi d'emails de rapports |
+| `EMAIL_FROM` | ⬜ | Adresse d'expédition des emails |
+
+### Vérifier l'état de santé
+
+```
+GET /api/health
+```
+Retourne l'état de la DB, du binaire Rust, et du build frontend.
+
+## Structure du projet
 
 ```
 intel/
-├── security-core/          # Rust engine (compiled CLI binary)
-│   ├── Cargo.toml
+├── backend/          # API Node.js/TypeScript
 │   └── src/
-│       ├── lib.rs          # Shared types (Finding, ScanConfig, FuzzJob, etc.)
-│       ├── main.rs         # CLI entry point
-│       ├── scanner/        # Vulnerability scanners
-│       │   ├── dependency.rs
-│       │   ├── sast.rs
-│       │   ├── config.rs
-│       │   ├── cve.rs
-│       │   ├── fintech.rs
-│       │   └── load_tester.rs
-│       └── fuzzer/         # Endpoint discovery
-│           ├── endpoints.rs
-│           └── wordlist.rs
-└── docs/                   # Documentation and audit guides
+│       ├── index.ts  # Point d'entrée (port 3000)
+│       ├── db.ts     # Pool PostgreSQL
+│       └── routes/   # phishing, fuzz, scans, osint, mandates...
+├── web-ui/           # Frontend React/Vite
+│   ├── src/
+│   └── dist/         # Build de production (généré par npm run build)
+├── security-core/    # Moteur Rust
+│   └── target/release/intel  # Binaire compilé (non versionné dans git)
+├── deploy/
+│   └── schema.sql    # Schéma PostgreSQL à appliquer une seule fois
+└── deploy.sh         # Script de déploiement Plesk
 ```
 
-## Notes
+## Notes importantes
 
-- Use ONLY on systems you are authorized to test
-- The backend/frontend/proxy components referenced in the README are not yet implemented (see project tasks)
+- Le binaire Rust (`target/release/intel`) est exclu de git — il doit être recompilé sur chaque serveur cible
+- `web-ui/dist/` doit être dans `.gitignore` ou regénéré à chaque déploiement via `deploy.sh`
+- N'utiliser que sur des systèmes pour lesquels vous avez une autorisation écrite
+
+## User preferences
+
+- Langue de communication : Français

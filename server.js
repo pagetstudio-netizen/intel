@@ -9,5 +9,6 @@ const path = require('path');
 // S'assurer que process.cwd() est bien la racine du projet
 process.chdir(path.resolve(__dirname));
 
-require('tsx/cjs');
+// tsx est installé dans backend/node_modules — on l'enregistre depuis là
+require('./backend/node_modules/tsx/cjs');
 require('./backend/src/index.ts');

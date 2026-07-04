@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS load_tests (
     avg_response_ms BIGINT DEFAULT 0,
     server_crash BOOLEAN DEFAULT FALSE,
     verdict TEXT,
+    results JSONB DEFAULT '{}',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     completed_at TIMESTAMPTZ
 );

@@ -10,6 +10,10 @@ set -e
 
 echo "🚀 [INTEL] Déploiement démarré — $(date)"
 
+# ── 0. Dépendances racine (server.js nécessite tsx via backend) ──
+echo "📦 Installation dépendances racine..."
+npm install --production=false
+
 # ── 1. Dépendances backend ────────────────────────────────────
 echo "📦 Installation backend..."
 cd backend
