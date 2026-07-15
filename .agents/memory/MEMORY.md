@@ -1,1 +1,2 @@
 - [Rust binary not portable to Plesk](rust-binary-plesk-deploy.md) — security-core's compiled binary is Nix-linked and must be rebuilt on the target server, not committed to git.
+- [Shared rate limiter must exclude polled GETs](shared-rate-limiter-polling.md) — mount rate limiters on POST handlers only, never on a router mounted wholesale, when the frontend polls GET routes every few seconds.

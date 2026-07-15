@@ -1,3 +1,4 @@
+import { scanLimiter } from '../rate-limit';
 import { Router, Request, Response } from 'express';
 import { pool } from '../db';
 import { runFuzz } from '../intel';
@@ -32,7 +33,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/fuzz
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', scanLimiter, async (req: Request, res: Response) => {
   const { concurrency = 10, timeout_ms = 5000 } = req.body;
   const validated = validateTargetUrl(String(req.body?.target_url ?? ''));
   if (!validated.ok) return res.status(400).json({ error: validated.error });

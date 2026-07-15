@@ -192,6 +192,29 @@ export interface AuthAudit {
   completed_at?: string;
 }
 
+export interface SecurityFinding {
+  id: string;
+  name: string;
+  category: 'headers' | 'tls' | 'vuln';
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
+  passed: boolean;
+  description: string;
+  recommendation: string;
+}
+
+export interface SecurityAudit {
+  id: string;
+  target_url: string;
+  domain: string;
+  status: 'running' | 'completed' | 'failed';
+  findings: SecurityFinding[];
+  score: number;
+  risk_level: 'CRITIQUE' | 'ÉLEVÉ' | 'MOYEN' | 'FAIBLE' | 'UNKNOWN';
+  summary?: string;
+  created_at: string;
+  completed_at?: string;
+}
+
 export const api = {
   getScans: (): Promise<Scan[]> =>
     safeFetch(`${BASE}/scans`),
@@ -247,4 +270,9 @@ export const api = {
     safeFetch(`${BASE}/mandates/confirm/${token}`, { method: 'POST' }),
   revokeMandate: (id: string): Promise<void> =>
     safeFetch(`${BASE}/mandates/${id}`, { method: 'DELETE' }),
+
+  getSecurityAudits: (): Promise<SecurityAudit[]> =>
+    safeFetch(`${BASE}/security-audit`),
+  startSecurityAudit: (target_url: string): Promise<SecurityAudit> =>
+    safeFetch(`${BASE}/security-audit`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target_url }) }),
 };

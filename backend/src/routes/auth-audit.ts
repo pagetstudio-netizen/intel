@@ -1,3 +1,4 @@
+import { scanLimiter } from '../rate-limit';
 import { Router, Request, Response } from 'express';
 import { pool } from '../db';
 import { URL } from 'url';
@@ -103,7 +104,7 @@ router.get('/:id', async (req, res: Response) => {
   } catch { res.status(500).json({ error: 'Database error' }); }
 });
 
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', scanLimiter, async (req: Request, res: Response) => {
   const validated = validateUrl(String(req.body?.target_url ?? ''));
   if (!validated.ok) return res.status(400).json({ error: validated.error });
 

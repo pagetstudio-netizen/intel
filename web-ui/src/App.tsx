@@ -22,10 +22,10 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: string |
     return this.props.children;
   }
 }
-import { api, Scan, FuzzJob, LoadTest, PhishingAssessment, PhishingCheck, FintechFraudAudit, FraudCheck, Mandate, OsintScan, AuthAudit, AuthCheck, ExposedEndpoint } from './api';
+import { api, Scan, FuzzJob, LoadTest, PhishingAssessment, PhishingCheck, FintechFraudAudit, FraudCheck, Mandate, OsintScan, AuthAudit, AuthCheck, ExposedEndpoint, SecurityAudit, SecurityFinding } from './api';
 import './app.css';
 
-type Tab = 'phishing' | 'fraud' | 'loadtest' | 'scanner' | 'fuzzer' | 'history' | 'mandats' | 'osint' | 'authaudit';
+type Tab = 'phishing' | 'fraud' | 'loadtest' | 'scanner' | 'fuzzer' | 'history' | 'mandats' | 'osint' | 'authaudit' | 'securityaudit';
 
 const SEV_COLOR: Record<string, string> = {
   CRITICAL: '#ff3b5c', HIGH: '#ff6b35', MEDIUM: '#fbbf24', LOW: '#60d394', INFO: '#60a5fa',
@@ -396,6 +396,12 @@ function AppInner() {
   const [osintLoading, setOsintLoading] = useState(false);
   const [activeOsint, setActiveOsint] = useState<OsintScan | null>(null);
 
+  // Audit de sécurité (consolidé) state
+  const [secAudits, setSecAudits] = useState<SecurityAudit[]>([]);
+  const [secTarget, setSecTarget] = useState('https://');
+  const [secLoading, setSecLoading] = useState(false);
+  const [activeSecAudit, setActiveSecAudit] = useState<SecurityAudit | null>(null);
+
   // Mandats state
   const [mandates, setMandates] = useState<Mandate[]>([]);
   const [mTesterCompany, setMTesterCompany] = useState('');
@@ -430,12 +436,13 @@ function AppInner() {
 
   const refresh = useCallback(async () => {
     try {
-      const [s, f, l, p, fa, m, os, aa] = await Promise.all([
+      const [s, f, l, p, fa, m, os, aa, sa] = await Promise.all([
         api.getScans(), api.getFuzzJobs(), api.getLoadTests(),
         api.getPhishingAssessments(), api.getFintechFraudAudits(),
         api.getMandates(), api.getOsintScans(), api.getAuthAudits(),
+        api.getSecurityAudits(),
       ]);
-      setScans(s); setFuzzes(f); setLoadTests(l); setPhishings(p); setFraudAudits(fa); setMandates(m); setOsintScans(os); setAuthAudits(aa);
+      setScans(s); setFuzzes(f); setLoadTests(l); setPhishings(p); setFraudAudits(fa); setMandates(m); setOsintScans(os); setAuthAudits(aa); setSecAudits(sa);
       if (activeAuthAudit) {
         const fresh = aa.find(x => x.id === activeAuthAudit.id);
         if (fresh) setActiveAuthAudit(fresh);
@@ -443,6 +450,10 @@ function AppInner() {
       if (activeOsint) {
         const fresh = os.find(x => x.id === activeOsint.id);
         if (fresh) setActiveOsint(fresh);
+      }
+      if (activeSecAudit) {
+        const fresh = sa.find(x => x.id === activeSecAudit.id);
+        if (fresh) setActiveSecAudit(fresh);
       }
       if (selected) {
         const fresh = [...s, ...f, ...l, ...p, ...fa].find(x => x.id === selected.id);
@@ -455,7 +466,7 @@ function AppInner() {
     } catch {
       // refresh silencieux — ne pas afficher d'erreur pour le polling automatique
     }
-  }, [selected, activeFuzz, activeOsint]);
+  }, [selected, activeFuzz, activeOsint, activeSecAudit]);
 
   useEffect(() => { refresh(); const t = setInterval(refresh, 3000); return () => clearInterval(t); }, [refresh]);
 
@@ -494,6 +505,12 @@ function AppInner() {
     try { const r = await api.startAuthAudit(authTarget); setActiveAuthAudit(r); }
     catch (err: any) { showError(err?.message || 'Erreur lors de l\'audit auth'); }
     finally { setAuthLoading(false); }
+  }
+  async function handleSecurityAudit(e: React.FormEvent) {
+    e.preventDefault(); setSecLoading(true);
+    try { const r = await api.startSecurityAudit(secTarget); setActiveSecAudit(r); await refresh(); }
+    catch (err: any) { showError(err?.message || "Erreur lors de l'audit de sécurité"); }
+    finally { setSecLoading(false); }
   }
   async function handleOsint(e: React.FormEvent) {
     e.preventDefault(); setOsintLoading(true); setActiveOsint(null);
@@ -546,6 +563,7 @@ function AppInner() {
   );
 
   const TABS: [Tab, string][] = [
+    ['securityaudit', '🛡️ Audit de sécurité'],
     ['phishing', '🎣 Phishing'],
     ['fraud', '💳 Fraude API'],
     ['authaudit', '🔐 Auth Audit'],
@@ -1240,6 +1258,16 @@ function AppInner() {
           />
         )}
 
+        {/* ===== AUDIT DE SÉCURITÉ TAB ===== */}
+        {tab === 'securityaudit' && (
+          <SecurityAuditTab
+            secTarget={secTarget} setSecTarget={setSecTarget}
+            handleSecurityAudit={handleSecurityAudit} secLoading={secLoading}
+            activeSecAudit={activeSecAudit} secAudits={secAudits}
+            setActiveSecAudit={setActiveSecAudit}
+          />
+        )}
+
         {/* ===== OSINT TAB ===== */}
         {tab === 'osint' && (
           <OsintTab
@@ -1250,6 +1278,159 @@ function AppInner() {
           />
         )}
       </main>
+    </div>
+  );
+}
+
+const SEC_CAT_ICON: Record<string, string> = { headers: '📋', tls: '🔒', vuln: '🐞' };
+const SEC_CAT_LABEL: Record<string, string> = { headers: 'En-têtes HTTP', tls: 'TLS / Certificat', vuln: 'Vulnérabilité (moteur)' };
+
+function SecurityFindingRow({ f }: { f: SecurityFinding }) {
+  const [open, setOpen] = useState(false);
+  const color = SEV_COLOR[f.severity] ?? '#60a5fa';
+  return (
+    <div style={{ borderLeft: `3px solid ${f.passed ? '#60d394' : color}`, background: '#0a0e1a', borderRadius: '0 6px 6px 0', marginBottom: 6, cursor: 'pointer' }} onClick={() => setOpen(o => !o)}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px' }}>
+        <span style={{ fontSize: 14 }}>{SEC_CAT_ICON[f.category] ?? '🛡️'}</span>
+        <span style={{ flex: 1, color: '#e2e8f0', fontSize: 13, fontWeight: 600 }}>{f.name}</span>
+        {!f.passed && <span style={{ color, fontSize: 10, fontWeight: 700, background: `${color}22`, padding: '2px 8px', borderRadius: 4 }}>{f.severity}</span>}
+        <span style={{ color: f.passed ? '#60d394' : '#ff3b5c', fontSize: 16 }}>{f.passed ? '✓' : '✗'}</span>
+      </div>
+      {open && (
+        <div style={{ padding: '0 14px 12px 38px' }}>
+          <div style={{ color: '#94a3b8', fontSize: 12, marginBottom: 6 }}>{f.description}</div>
+          {!f.passed && <div style={{ color: '#60a5fa', fontSize: 11 }}>💡 {f.recommendation}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SecurityAuditTab({ secTarget, setSecTarget, handleSecurityAudit, secLoading, activeSecAudit, secAudits, setActiveSecAudit }: {
+  secTarget: string; setSecTarget: (v: string) => void;
+  handleSecurityAudit: (e: React.FormEvent) => void; secLoading: boolean;
+  activeSecAudit: SecurityAudit | null; secAudits: SecurityAudit[];
+  setActiveSecAudit: (a: SecurityAudit | null) => void;
+}) {
+  const display = activeSecAudit ?? secAudits[0] ?? null;
+  const RISK_C: Record<string, string> = { CRITIQUE: '#ff3b5c', ÉLEVÉ: '#ff6b35', MOYEN: '#fbbf24', FAIBLE: '#60d394', UNKNOWN: '#475569' };
+  const SEV_ORDER = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'];
+  const findings = [...(display?.findings ?? [])].sort((a, b) => SEV_ORDER.indexOf(a.severity) - SEV_ORDER.indexOf(b.severity));
+  const failedCount = findings.filter(f => !f.passed).length;
+
+  return (
+    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      <div className={display ? 'history-grid' : 'history-grid no-detail'}>
+
+        {/* Left: form + history */}
+        <div>
+          <h2 style={{ color: '#e2e8f0', fontSize: 16, fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ color: '#60a5fa' }}>🛡️</span> Audit de sécurité — Rapport consolidé
+          </h2>
+          <p style={{ color: '#475569', fontSize: 12, marginBottom: 18, lineHeight: 1.6 }}>
+            Combine en un seul rapport les en-têtes de sécurité HTTP, la configuration TLS/certificat et le scan de
+            vulnérabilités du moteur Rust — avec un score global sur 100 et des recommandations priorisées.
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 18 }}>
+            {[
+              ['📋', 'En-têtes HTTP', 'CSP, HSTS, X-Frame-Options...'],
+              ['🔒', 'TLS / Certificat', 'Validité, version du protocole'],
+              ['🐞', 'Vulnérabilités', 'Scan approfondi du moteur Rust'],
+            ].map(([icon, title, desc]) => (
+              <div key={String(title)} style={{ background: '#0d1424', border: '1px solid #2563eb20', borderRadius: 8, padding: '10px 12px' }}>
+                <div style={{ fontSize: 16, marginBottom: 4 }}>{icon}</div>
+                <div style={{ color: '#93c5fd', fontSize: 11, fontWeight: 700, marginBottom: 2 }}>{title}</div>
+                <div style={{ color: '#475569', fontSize: 10 }}>{desc}</div>
+              </div>
+            ))}
+          </div>
+
+          <form onSubmit={handleSecurityAudit} style={{ marginBottom: 20 }}>
+            <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+              URL de la cible *
+            </label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input value={secTarget} onChange={e => setSecTarget(e.target.value)} required
+                placeholder="https://client.com"
+                style={{ flex: 1, background: '#0a0e1a', border: '1px solid #1e293b', borderRadius: 6, padding: '10px 14px', color: '#e2e8f0', fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+              <button type="submit" disabled={secLoading}
+                style={{ padding: '10px 16px', background: secLoading ? '#1e293b' : 'linear-gradient(135deg, #2563eb, #0891b2)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: secLoading ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
+                {secLoading ? '⟳' : '🛡️ Auditer'}
+              </button>
+            </div>
+            <div style={{ color: '#334155', fontSize: 11, marginTop: 8, lineHeight: 1.5 }}>
+              ⚠️ Le scan de vulnérabilités peut prendre jusqu'à une minute. N'auditez que des cibles que vous êtes autorisé à tester.
+            </div>
+          </form>
+
+          {/* History */}
+          {secAudits.length > 0 && (
+            <div>
+              <div style={{ color: '#475569', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Historique</div>
+              {secAudits.map(a => (
+                <div key={a.id} onClick={() => setActiveSecAudit(a)}
+                  style={{ background: '#0d1424', border: `1px solid ${display?.id === a.id ? '#2563eb' : '#1e293b'}`, borderRadius: 8, padding: '10px 14px', marginBottom: 6, cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: '#e2e8f0', fontWeight: 600, fontSize: 13 }}>{a.domain}</span>
+                    <span style={{ color: a.status === 'completed' ? (RISK_C[a.risk_level] ?? '#94a3b8') : a.status === 'running' ? '#60a5fa' : '#ff3b5c', fontSize: 11, fontWeight: 700 }}>
+                      {a.status === 'running' ? '⟳ En cours' : a.status === 'completed' ? `${a.score}/100` : '✗ Erreur'}
+                    </span>
+                  </div>
+                  {a.status === 'completed' && (
+                    <div style={{ color: '#475569', fontSize: 11, marginTop: 3 }}>
+                      {(a.findings ?? []).filter(f => !f.passed).length} problème(s) détecté(s)
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Right: results */}
+        {display && (
+          <div className="detail-panel">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+              <div>
+                <div style={{ color: '#e2e8f0', fontWeight: 800, fontSize: 17 }}>{display.domain}</div>
+                <div style={{ color: '#475569', fontSize: 12 }}>
+                  {display.status === 'running' ? '⟳ Audit en cours...' : display.status === 'completed' ? `Terminé — ${new Date(display.completed_at!).toLocaleString('fr-FR')}` : '✗ Échec'}
+                </div>
+              </div>
+            </div>
+
+            {display.status === 'running' && (
+              <div style={{ color: '#60a5fa', fontSize: 13, textAlign: 'center', padding: '30px 0' }}>
+                ⟳ Analyse en cours — en-têtes HTTP, TLS, scan de vulnérabilités...
+              </div>
+            )}
+
+            {display.status === 'failed' && (
+              <div style={{ background: '#ff3b5c18', border: '1px solid #ff3b5c40', borderRadius: 6, padding: '10px 14px', color: '#ff3b5c', fontSize: 13 }}>
+                {display.summary}
+              </div>
+            )}
+
+            {display.status === 'completed' && (
+              <>
+                <ScoreRing score={display.score} level={display.risk_level} />
+                {display.summary && (
+                  <div style={{ background: '#0a0e1a', border: '1px solid #1e293b', borderRadius: 6, padding: '12px 16px', marginBottom: 20, color: '#94a3b8', fontSize: 13 }}>
+                    {display.summary}
+                  </div>
+                )}
+                <div style={{ color: '#475569', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+                  Résultats détaillés ({failedCount} problème(s) sur {findings.length})
+                </div>
+                <div>
+                  {findings.map(f => <SecurityFindingRow key={f.id} f={f} />)}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

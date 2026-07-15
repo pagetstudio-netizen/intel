@@ -12,6 +12,7 @@ import fintechFraudRouter from './routes/fintech-fraud';
 import mandatesRouter from './routes/mandates';
 import osintRouter from './routes/osint';
 import authAuditRouter from './routes/auth-audit';
+import securityAuditRouter from './routes/security-audit';
 import { scanLimiter, mutationLimiter } from './rate-limit';
 
 const app = express();
@@ -99,15 +100,18 @@ app.get('/api/health', async (_req, res) => {
 
 // Les endpoints qui déclenchent des requêtes sortantes (scan/fuzz/load-test/etc.)
 // sont limités en débit pour éviter les abus (DoS, usage comme proxy d'attaque).
-app.use('/api/scans', scanLimiter, scansRouter);
-app.use('/api/fuzz', scanLimiter, fuzzRouter);
-app.use('/api/load-test', scanLimiter, loadTestRouter);
-app.use('/api/phishing', scanLimiter, phishingRouter);
+// Le rate-limit (scanLimiter) est appliqué à l'intérieur de chaque routeur, sur la
+// route POST uniquement — pas sur les GET, qui sont pollés toutes les 3s par le frontend.
+app.use('/api/scans', scansRouter);
+app.use('/api/fuzz', fuzzRouter);
+app.use('/api/load-test', loadTestRouter);
+app.use('/api/phishing', phishingRouter);
 app.use('/api/demo-email', mutationLimiter, demoEmailRouter);
-app.use('/api/fintech-fraud', scanLimiter, fintechFraudRouter);
+app.use('/api/fintech-fraud', fintechFraudRouter);
 app.use('/api/mandates', mutationLimiter, mandatesRouter);
-app.use('/api/osint', scanLimiter, osintRouter);
-app.use('/api/auth-audit', scanLimiter, authAuditRouter);
+app.use('/api/osint', osintRouter);
+app.use('/api/auth-audit', authAuditRouter);
+app.use('/api/security-audit', securityAuditRouter);
 
 // Servir le frontend React en production (Plesk / déploiement)
 const distPath = path.resolve(__dirname, '..', '..', 'web-ui', 'dist');

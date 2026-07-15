@@ -1,3 +1,4 @@
+import { scanLimiter } from '../rate-limit';
 import { Router, Request, Response } from 'express';
 import { pool } from '../db';
 import { spawn } from 'child_process';
@@ -86,7 +87,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/load-test
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', scanLimiter, async (req: Request, res: Response) => {
   const { target_url, concurrent_users, rps, duration_seconds } = req.body;
 
   // Validate URL (SSRF guard)

@@ -1,3 +1,4 @@
+import { scanLimiter } from '../rate-limit';
 import { Router, Request, Response } from 'express';
 import { pool } from '../db';
 import { runScan } from '../intel';
@@ -32,7 +33,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/scans
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', scanLimiter, async (req: Request, res: Response) => {
   const { deep = false, timeout = 60 } = req.body;
   const validated = validateTargetUrl(String(req.body?.target_url ?? ''));
   if (!validated.ok) return res.status(400).json({ error: validated.error });
