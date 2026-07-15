@@ -905,7 +905,7 @@ function AppInner() {
               <div className="detail-panel">
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
                   <h3 style={{ color: '#60a5fa', fontSize: 14 }}>
-                    {'checks' in selected && 'domain' in selected && !('risk_level' in selected && 'category' in (selected as any).checks?.[0] && ['auth', 'csrf', 'cors'].includes((selected as any).checks?.[0]?.category))
+                    {'checks' in selected && 'domain' in selected && !('risk_level' in selected && (selected as any).checks?.[0] != null && 'category' in (selected as any).checks[0] && ['auth', 'csrf', 'cors'].includes((selected as any).checks[0]?.category))
                       ? '🎣 Phishing Report'
                       : 'checks' in selected ? '💳 Audit Fraude Fintech'
                       : 'verdict' in selected ? '⚡ Stress Test'
