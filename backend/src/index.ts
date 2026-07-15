@@ -12,11 +12,24 @@ import fintechFraudRouter from './routes/fintech-fraud';
 import mandatesRouter from './routes/mandates';
 import osintRouter from './routes/osint';
 import authAuditRouter from './routes/auth-audit';
+import { scanLimiter, mutationLimiter } from './rate-limit';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000');
 
-app.use(cors());
+// CORS — en production, restreindre aux origines listées dans ALLOWED_ORIGINS
+// (séparées par des virgules). Sans variable définie, autorise tout en dev pour
+// ne pas casser le poste de développement local.
+const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin: allowedOrigins.length > 0
+    ? allowedOrigins
+    : (process.env.NODE_ENV === 'production' ? false : true),
+}));
 app.use(express.json());
 
 // Health check — vérifie les vrais points de défaillance possibles (DB, binaire Rust, build frontend)
@@ -84,15 +97,17 @@ app.get('/api/health', async (_req, res) => {
   });
 });
 
-app.use('/api/scans', scansRouter);
-app.use('/api/fuzz', fuzzRouter);
-app.use('/api/load-test', loadTestRouter);
-app.use('/api/phishing', phishingRouter);
-app.use('/api/demo-email', demoEmailRouter);
-app.use('/api/fintech-fraud', fintechFraudRouter);
-app.use('/api/mandates', mandatesRouter);
-app.use('/api/osint', osintRouter);
-app.use('/api/auth-audit', authAuditRouter);
+// Les endpoints qui déclenchent des requêtes sortantes (scan/fuzz/load-test/etc.)
+// sont limités en débit pour éviter les abus (DoS, usage comme proxy d'attaque).
+app.use('/api/scans', scanLimiter, scansRouter);
+app.use('/api/fuzz', scanLimiter, fuzzRouter);
+app.use('/api/load-test', scanLimiter, loadTestRouter);
+app.use('/api/phishing', scanLimiter, phishingRouter);
+app.use('/api/demo-email', mutationLimiter, demoEmailRouter);
+app.use('/api/fintech-fraud', scanLimiter, fintechFraudRouter);
+app.use('/api/mandates', mutationLimiter, mandatesRouter);
+app.use('/api/osint', scanLimiter, osintRouter);
+app.use('/api/auth-audit', scanLimiter, authAuditRouter);
 
 // Servir le frontend React en production (Plesk / déploiement)
 const distPath = path.resolve(__dirname, '..', '..', 'web-ui', 'dist');

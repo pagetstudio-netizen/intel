@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { pool } from '../db';
 import { runScan } from '../intel';
+import { validateTargetUrl } from '../ssrf-guard';
 
 const router = Router();
 
@@ -32,8 +33,10 @@ router.get('/:id', async (req: Request, res: Response) => {
 
 // POST /api/scans
 router.post('/', async (req: Request, res: Response) => {
-  const { target_url, deep = false, timeout = 60 } = req.body;
-  if (!target_url) return res.status(400).json({ error: 'target_url required' });
+  const { deep = false, timeout = 60 } = req.body;
+  const validated = validateTargetUrl(String(req.body?.target_url ?? ''));
+  if (!validated.ok) return res.status(400).json({ error: validated.error });
+  const target_url = validated.url;
 
   // Create scan record
   const { rows } = await pool.query(
