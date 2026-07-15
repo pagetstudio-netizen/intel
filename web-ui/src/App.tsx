@@ -1053,7 +1053,7 @@ function AppInner() {
                 )}
 
                 {/* Fuzz results */}
-                {'results' in selected && (
+                {'results' in selected && !('verdict' in selected) && (
                   <div>
                     {selected.status === 'running' && <p style={{ color: '#60a5fa', fontSize: 13 }}>⟳ Fuzzing en cours...</p>}
                     {selected.status === 'completed' && !(selected as FuzzJob).results?.length && (
